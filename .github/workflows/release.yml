@@ -3,9 +3,10 @@ name: release
 # Tag a release (v1.2.3) and this publishes ghcr.io/openpak/xb-account:1.2.3, :1.2 and :latest for
 # amd64 and arm64. Runs only on pushed v*.*.* tags (or manually) on the OpenPak self-hosted
 # runner (podman + qemu binfmt), so it costs no GitHub-hosted minutes.
-# The module github.com/openpak/xb-common is private: the build reads it with this job's
-# GITHUB_TOKEN through a netrc build secret (xb-common's Actions access is set to
-# "accessible from repositories in the organization"). The token never enters the image.
+# The module github.com/openpak/xb-common is private and GITHUB_TOKEN cannot read other private
+# repositories, so the build reads it through a netrc build secret made from the repo secret
+# OPENPAK_MODULE_TOKEN when set (org convention) or else from the self-hosted runner host's own
+# `gh auth token`. The token never enters the image or git; the netrc is deleted at the end.
 on:
   push:
     tags: ['v*.*.*']
@@ -28,10 +29,12 @@ jobs:
           echo "TMPDIR=$RUNNER_TEMP/scratch" >> "$GITHUB_ENV"
       - name: Test (Go container, GOWORK=off)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODULE_TOKEN: ${{ secrets.OPENPAK_MODULE_TOKEN }}
         run: |
           umask 077
-          printf 'machine github.com login x-access-token password %s\n' "$GITHUB_TOKEN" > "$RUNNER_TEMP/netrc"
+          # Prefer a repo secret OPENPAK_MODULE_TOKEN; otherwise the runner host's own gh login.
+          TOKEN="${MODULE_TOKEN:-$(gh auth token)}"
+          printf 'machine github.com login x-access-token password %s\n' "$TOKEN" > "$RUNNER_TEMP/netrc"
           podman run --rm --pull=newer --platform "linux/$(podman info --format '{{.Host.Arch}}')" -v "$PWD:/src:Z" -v "$RUNNER_TEMP/netrc:/root/.netrc:ro,Z" -w /src \
             -e GOWORK=off -e GOFLAGS=-buildvcs=false -e 'GOPRIVATE=github.com/openpak/*' \
             docker.io/library/golang:1.26-bookworm sh -ec '
