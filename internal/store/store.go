@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS gamertag_audit(
  id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, core_account_id TEXT NOT NULL, xuid TEXT NOT NULL,
  old_tag TEXT NOT NULL, new_tag TEXT NOT NULL, request_id TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS gamertag_audit_request ON gamertag_audit(request_id) WHERE request_id<>'';
+CREATE TABLE IF NOT EXISTS user_settings(
+ xuid TEXT PRIMARY KEY, word INTEGER NOT NULL, updated INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS cursors(name TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS processed_events(event_id TEXT PRIMARY KEY, version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS revocations(

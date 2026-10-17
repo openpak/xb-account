@@ -155,7 +155,7 @@ func run() error {
 		if allowOwner {
 			log.Printf("WARNING: XB_SVC5_TEST_ALLOW_OWNER=1: test deployment, one-user-per-account refusal disabled")
 		}
-		srv := &svc5.Server{Names: db, AllowOwner: allowOwner, Vouchers: vouchers, Signups: enrolments}
+		srv := &svc5.Server{Names: db, AllowOwner: allowOwner, Vouchers: vouchers, Signups: enrolments, Users: db}
 		// The account record handed out at createowneracct carries the user's
 		// key, derived from the same secret ring xb-auth verifies against.
 		if f := os.Getenv("XB_USER_KEY_SECRETS_FILE"); f != "" {
@@ -168,11 +168,15 @@ func run() error {
 				_, secret := ring.Active()
 				return svc5.AccountRecord(xuid, krb.DeriveUserKey(secret, xuid), domain, realm)
 			}
+			srv.UserKey = func(xuid uint64) ([16]byte, error) {
+				_, secret := ring.Active()
+				return krb.DeriveUserKey(secret, xuid), nil
+			}
 		}
 		xbfeature.Register(g, xbfeature.LogHTTP(srv))
 		go func() { done <- g.Serve(lis) }()
 		defer g.Stop()
-		log.Printf("xb-account service 5 (reservename only) on %s", lis.Addr())
+		log.Printf("xb-account service 5 (signup and account management) on %s", lis.Addr())
 	}
 	select {
 	case err := <-done:

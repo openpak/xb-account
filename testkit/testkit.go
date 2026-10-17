@@ -21,7 +21,9 @@ import (
 	"github.com/openpak/xb-account/internal/resolver"
 	"github.com/openpak/xb-account/internal/revoke"
 	"github.com/openpak/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/svc5"
 	"github.com/openpak/xb-account/internal/voucher"
+	"github.com/openpak/xb-common/xbfeature"
 )
 
 // SPIFFE identities the routes authorize.
@@ -110,4 +112,16 @@ func (a *Account) DeviceXUID(t interface{ Fatalf(string, ...any) }, machineID st
 		t.Fatalf("no device XUID: %v", err)
 	}
 	return d.XUID
+}
+
+// Svc5 returns the native service-5 handler over the same store (signup,
+// subscription codes and the account-management calls). userKey supplies the
+// account key setuserpin hands back (the secret ring in a deployment).
+func (a *Account) Svc5(userKey func(xuid uint64) ([16]byte, error)) xbfeature.Handler {
+	return &svc5.Server{Names: a.db, Vouchers: a.Vouchers, Signups: a.Enrol, Users: a.db, UserKey: userKey, Now: a.now}
+}
+
+// UserSettings returns the settings word stored by setusersettings.
+func (a *Account) UserSettings(xuid string) (word uint16, ok bool, err error) {
+	return a.db.UserSettings(context.Background(), xuid)
 }

@@ -67,6 +67,10 @@ type Server struct {
 	Vouchers    VoucherChecker
 	Signups     Signups
 	AccountBlob func(xuid uint64) ([]byte, error)
+	// Users and UserKey enable the account-management calls (manage.go). Without
+	// Users those paths stay 501; setuserpin also needs UserKey.
+	Users   Users
+	UserKey func(xuid uint64) ([16]byte, error)
 	// AllowOwner skips the one-user-per-account refusal. TEST DEPLOYMENTS ONLY:
 	// it lets a console whose account already owns a gamertag exercise the
 	// name screens. Nothing is created either way.
@@ -279,6 +283,9 @@ type handlerFunc func(ctx context.Context, info xbfeature.Info, body []byte) res
 
 // route returns the implementation of an implemented path, nil otherwise.
 func (s *Server) route(path string) handlerFunc {
+	if h := s.manageRoute(path); h != nil {
+		return h
+	}
 	switch path {
 	case "/xuacs/reservename.ashx":
 		return s.reserveName
