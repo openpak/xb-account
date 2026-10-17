@@ -13,15 +13,15 @@ import (
 	"sync"
 	"time"
 
-	"openpak/xb-live/services/xb-account/internal/api"
-	pb "openpak/xb-live/services/xb-account/internal/corepb"
-	"openpak/xb-live/services/xb-account/internal/coretest"
-	"openpak/xb-live/services/xb-account/internal/enrol"
-	"openpak/xb-live/services/xb-account/internal/provision"
-	"openpak/xb-live/services/xb-account/internal/resolver"
-	"openpak/xb-live/services/xb-account/internal/revoke"
-	"openpak/xb-live/services/xb-account/internal/store"
-	"openpak/xb-live/services/xb-account/internal/voucher"
+	"github.com/openpak/xb-account/internal/api"
+	pb "github.com/openpak/xb-account/internal/corepb"
+	"github.com/openpak/xb-account/internal/coretest"
+	"github.com/openpak/xb-account/internal/enrol"
+	"github.com/openpak/xb-account/internal/provision"
+	"github.com/openpak/xb-account/internal/resolver"
+	"github.com/openpak/xb-account/internal/revoke"
+	"github.com/openpak/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/voucher"
 )
 
 // SPIFFE identities the routes authorize.

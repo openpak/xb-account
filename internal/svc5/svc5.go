@@ -31,9 +31,9 @@ import (
 	"sync"
 	"time"
 
-	"openpak/xb-live/internal/xbaccountapi"
-	"openpak/xb-live/internal/xbfeature"
-	"openpak/xb-live/services/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/store"
+	"github.com/openpak/xb-common/xbaccountapi"
+	"github.com/openpak/xb-common/xbfeature"
 )
 
 // Native status values the dashboard maps to its own messages (HRESULT table of

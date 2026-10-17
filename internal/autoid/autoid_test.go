@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"openpak/xb-live/internal/xbaccountapi"
-	pb "openpak/xb-live/services/xb-account/internal/corepb"
-	"openpak/xb-live/services/xb-account/internal/coretest"
-	"openpak/xb-live/services/xb-account/internal/store"
+	pb "github.com/openpak/xb-account/internal/corepb"
+	"github.com/openpak/xb-account/internal/coretest"
+	"github.com/openpak/xb-account/internal/store"
+	"github.com/openpak/xb-common/xbaccountapi"
 )
 
 func setup(t *testing.T) (*Service, *coretest.Core, *store.Store) {

@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	"openpak/xb-live/internal/xbcodes"
-	"openpak/xb-live/internal/xbenrolapi"
-	"openpak/xb-live/services/xb-account/internal/enrol"
-	"openpak/xb-live/services/xb-account/internal/voucher"
+	"github.com/openpak/xb-account/internal/enrol"
+	"github.com/openpak/xb-account/internal/voucher"
+	"github.com/openpak/xb-account/internal/xbcodes"
+	"github.com/openpak/xb-common/xbenrolapi"
 )
 
 // Routes for the xb-enroll front (peer spiffe://openpak/xb-enroll only):

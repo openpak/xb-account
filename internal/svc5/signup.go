@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"unicode/utf16"
 
-	"openpak/xb-live/internal/xbfeature"
-	"openpak/xb-live/services/xb-account/internal/enrol"
-	"openpak/xb-live/services/xb-account/internal/voucher"
+	"github.com/openpak/xb-account/internal/enrol"
+	"github.com/openpak/xb-account/internal/voucher"
+	"github.com/openpak/xb-common/xbfeature"
 )
 
 // Status values for the subscription-code and signup steps (dashboard table,

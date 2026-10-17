@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"openpak/xb-live/internal/xbaccountapi"
-	"openpak/xb-live/internal/xbcrypto"
-	"openpak/xb-live/services/xb-account/internal/core"
-	pb "openpak/xb-live/services/xb-account/internal/corepb"
-	"openpak/xb-live/services/xb-account/internal/coretest"
-	"openpak/xb-live/services/xb-account/internal/provision"
-	"openpak/xb-live/services/xb-account/internal/resolver"
-	"openpak/xb-live/services/xb-account/internal/revoke"
-	"openpak/xb-live/services/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/core"
+	pb "github.com/openpak/xb-account/internal/corepb"
+	"github.com/openpak/xb-account/internal/coretest"
+	"github.com/openpak/xb-account/internal/provision"
+	"github.com/openpak/xb-account/internal/resolver"
+	"github.com/openpak/xb-account/internal/revoke"
+	"github.com/openpak/xb-account/internal/store"
+	"github.com/openpak/xb-common/xbaccountapi"
+	"github.com/openpak/xb-common/xbcrypto"
 )
 
 const (

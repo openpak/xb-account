@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"openpak/xb-live/internal/xbfeature"
+	"github.com/openpak/xb-common/xbfeature"
 )
 
 // Vectors from the Xombie presence codec tests (libs/xblive/src/service/

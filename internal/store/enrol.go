@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"openpak/xb-live/internal/xbaccountapi"
+	"github.com/openpak/xb-common/xbaccountapi"
 )
 
 // Device signup states (devices.signup).

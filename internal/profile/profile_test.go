@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"openpak/xb-live/services/xb-account/internal/autoid"
-	pb "openpak/xb-live/services/xb-account/internal/corepb"
-	"openpak/xb-live/services/xb-account/internal/coretest"
-	"openpak/xb-live/services/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/autoid"
+	pb "github.com/openpak/xb-account/internal/corepb"
+	"github.com/openpak/xb-account/internal/coretest"
+	"github.com/openpak/xb-account/internal/store"
 )
 
 func setup(t *testing.T) (*Service, *coretest.Core, *store.Store) {

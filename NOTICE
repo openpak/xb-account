@@ -1,0 +1,18 @@
+OpenPak xb-account
+Licensed under AGPL-3.0-only (LICENSE).
+
+Provenance
+----------
+Split out of https://github.com/openpak/xbox-live (branch openpak, commit
+7fc575dd21485791ed80149deba4f158e66044ae), a fork of
+https://github.com/XombieOnline/xombie (AGPL-3.0, base commit
+7a1ef08045271437efc5938c996cb0c209a31408). Git history of this service is
+preserved. Shared packages (crypto, Kerberos structures, contracts) live in
+https://github.com/openpak/xb-common, see its NOTICE.
+
+Xombie-derived code in this repository (audit 2026-10-17):
+  internal/svc5 (service 5 presence/signup message layouts and test vectors taken from the Xombie codec, libs/xblive).
+
+No Insignia, leaked Microsoft source or other third-party proprietary material
+was used. Protocol behaviour is documented in https://github.com/openpak/docs
+(xbox/). The legacy Rust workspace stays in openpak/xbox-live for reference.

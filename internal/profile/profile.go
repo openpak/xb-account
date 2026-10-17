@@ -12,10 +12,10 @@ import (
 	"errors"
 	"strings"
 
-	"openpak/xb-live/internal/xbaccountapi"
-	"openpak/xb-live/services/xb-account/internal/core"
-	"openpak/xb-live/services/xb-account/internal/projection"
-	"openpak/xb-live/services/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/core"
+	"github.com/openpak/xb-account/internal/projection"
+	"github.com/openpak/xb-account/internal/store"
+	"github.com/openpak/xb-common/xbaccountapi"
 )
 
 var (

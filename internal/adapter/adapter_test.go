@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	pb "github.com/openpak/xb-account/internal/corepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
-	pb "openpak/xb-live/services/xb-account/internal/corepb"
 )
 
 type fakeCore struct {

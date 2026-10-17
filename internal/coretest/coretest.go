@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"openpak/xb-live/services/xb-account/internal/core"
-	pb "openpak/xb-live/services/xb-account/internal/corepb"
+	"github.com/openpak/xb-account/internal/core"
+	pb "github.com/openpak/xb-account/internal/corepb"
 )
 
 type link struct {

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"openpak/xb-live/internal/xbfeature"
-	"openpak/xb-live/services/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/store"
+	"github.com/openpak/xb-common/xbfeature"
 )
 
 const (

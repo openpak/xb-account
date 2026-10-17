@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"strings"
 
-	"openpak/xb-live/internal/xbfeature"
+	"github.com/openpak/xb-common/xbfeature"
 )
 
 // Service 1 (Presence): POST /xpnfront/xpresence.srf, Content-type xon/1. The

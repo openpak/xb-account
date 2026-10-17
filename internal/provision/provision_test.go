@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"openpak/xb-live/services/xb-account/internal/autoid"
-	"openpak/xb-live/services/xb-account/internal/core"
-	pb "openpak/xb-live/services/xb-account/internal/corepb"
-	"openpak/xb-live/services/xb-account/internal/coretest"
-	"openpak/xb-live/services/xb-account/internal/store"
+	"github.com/openpak/xb-account/internal/autoid"
+	"github.com/openpak/xb-account/internal/core"
+	pb "github.com/openpak/xb-account/internal/corepb"
+	"github.com/openpak/xb-account/internal/coretest"
+	"github.com/openpak/xb-account/internal/store"
 )
 
 const (

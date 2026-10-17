@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"openpak/xb-live/internal/xbaccountapi"
-	"openpak/xb-live/services/xb-account/internal/core"
+	"github.com/openpak/xb-account/internal/core"
+	"github.com/openpak/xb-common/xbaccountapi"
 )
 
 const (

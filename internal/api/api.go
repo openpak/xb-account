@@ -13,11 +13,11 @@ import (
 	"io"
 	"net/http"
 
-	"openpak/xb-live/internal/xbaccountapi"
-	"openpak/xb-live/services/xb-account/internal/enrol"
-	"openpak/xb-live/services/xb-account/internal/profile"
-	"openpak/xb-live/services/xb-account/internal/provision"
-	"openpak/xb-live/services/xb-account/internal/voucher"
+	"github.com/openpak/xb-account/internal/enrol"
+	"github.com/openpak/xb-account/internal/profile"
+	"github.com/openpak/xb-account/internal/provision"
+	"github.com/openpak/xb-account/internal/voucher"
+	"github.com/openpak/xb-common/xbaccountapi"
 )
 
 const (

@@ -50,7 +50,7 @@ Distinct principal spaces: user (XUID, link namespace `xbox`, never `xbl`) and
 device (machine ID). One primary Xbox user per core account; gamertags are
 unique, case-insensitive aliases released on unlink/delete.
 
-Contract `internal/xbaccountapi` (mTLS; xb-auth and xb-gateway): `ResolveUser`,
+Contract `xb-common/xbaccountapi` (mTLS; xb-auth and xb-gateway): `ResolveUser`,
 `ResolveGamertag`, `ResolveDevice`, and the `Revocations` poll stream. Each
 resolve re-reads core (link + account status) and denies banned, unlinked,
 revoked, deleted or unavailable. Revocations are a durable outbox fed by the
@@ -78,3 +78,13 @@ linked (ReserveLink/ActivateLink, XUID reserved, no gamertag yet). Subscription
 codes are issued by the website and consumed by `enrol.CompleteSignup`. Routes,
 states, limits and error codes: workspace `docs/xbox/enrolment-contract.md`.
 The service-5 wire handling for verifyvoucher/createowneracct is not implemented.
+
+## Repository
+
+- Module `github.com/openpak/xb-account`, image `ghcr.io/openpak/xb-account` (static, scratch, uid 10001).
+- Shared packages: `github.com/openpak/xb-common` (private; see its README for access). Service map: workspace docs `xbox/native-service-architecture.md`.
+- Build and test: `GOWORK=off go build ./... && go vet ./... && go test -race ./...` (with `GOPRIVATE=github.com/openpak/*` and `gh auth setup-git`).
+- Image: `podman build --secret id=netrc,src=$HOME/.netrc -t ghcr.io/openpak/xb-account:dev .`
+- Release: push a `vX.Y.Z` tag; `.github/workflows/release.yml` (tags and manual dispatch only) tests and publishes the multi-arch image. CI reads xb-common with the job's `GITHUB_TOKEN` through a netrc build secret; nothing secret is in git or in the image.
+- `deploy/` holds the env example and a Podman quadlet example (digests in it are examples; production pins its own).
+- Provenance and licence: AGPL-3.0-only, see `LICENSE` and `NOTICE`. Derived from the Xombie project in part; the legacy Rust workspace remains in https://github.com/openpak/xbox-live.

@@ -6,7 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"openpak/xb-live/internal/xbaccountapi"
+	"github.com/openpak/xb-common/xbaccountapi"
 	"strings"
 )
 

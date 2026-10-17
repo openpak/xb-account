@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openpak/xb-common/xbaccountapi"
 	_ "modernc.org/sqlite"
-	"openpak/xb-live/internal/xbaccountapi"
 )
 
 var (

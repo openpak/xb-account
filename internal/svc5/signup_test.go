@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"openpak/xb-live/services/xb-account/internal/enrol"
-	"openpak/xb-live/services/xb-account/internal/voucher"
+	"github.com/openpak/xb-account/internal/enrol"
+	"github.com/openpak/xb-account/internal/voucher"
 )
 
 type fakeV struct{ err error }
