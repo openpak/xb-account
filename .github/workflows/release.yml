@@ -4,7 +4,8 @@ name: release
 # amd64 and arm64. Runs only on pushed v*.*.* tags (or manually) on the OpenPak self-hosted
 # runner (podman + qemu binfmt), so it costs no GitHub-hosted minutes.
 # The module github.com/openpak/xb-common is private: the build reads it with this job's
-# OPENPAK_MODULE_TOKEN (org secret) through a netrc build secret. The token never enters the image.
+# GITHUB_TOKEN through a netrc build secret (xb-common's Actions access is set to
+# "accessible from repositories in the organization"). The token never enters the image.
 on:
   push:
     tags: ['v*.*.*']
@@ -27,10 +28,10 @@ jobs:
           echo "TMPDIR=$RUNNER_TEMP/scratch" >> "$GITHUB_ENV"
       - name: Test (Go container, GOWORK=off)
         env:
-          MODULE_TOKEN: ${{ secrets.OPENPAK_MODULE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           umask 077
-          printf 'machine github.com login x-access-token password %s\n' "$MODULE_TOKEN" > "$RUNNER_TEMP/netrc"
+          printf 'machine github.com login x-access-token password %s\n' "$GITHUB_TOKEN" > "$RUNNER_TEMP/netrc"
           podman run --rm --pull=newer --platform "linux/$(podman info --format '{{.Host.Arch}}')" -v "$PWD:/src:Z" -v "$RUNNER_TEMP/netrc:/root/.netrc:ro,Z" -w /src \
             -e GOWORK=off -e GOFLAGS=-buildvcs=false -e 'GOPRIVATE=github.com/openpak/*' \
             docker.io/library/golang:1.26-bookworm sh -ec '
@@ -38,13 +39,9 @@ jobs:
               go test -race -count=1 ./...'
       # Job-scoped login, never the runner user's own. The runner context is not
       # available in job-level env, so each step that touches the registry sets it.
-      # The ghcr.io/openpak/<name> packages were created by the monorepo and are linked to
-      # openpak/xbox-live, so this repo's GITHUB_TOKEN cannot write them (403); the org's
-      # OPENPAK_MODULE_TOKEN (also used for the netrc above) pushes instead.
       - env:
           REGISTRY_AUTH_FILE: ${{ runner.temp }}/auth.json
-          MODULE_TOKEN: ${{ secrets.OPENPAK_MODULE_TOKEN }}
-        run: echo "$MODULE_TOKEN" | podman login ghcr.io -u tobagin --password-stdin
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
       - env:
           REGISTRY_AUTH_FILE: ${{ runner.temp }}/auth.json
         run: |
