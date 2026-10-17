@@ -235,3 +235,18 @@ func TestManageNeedsProvisionedConsoleAndUsers(t *testing.T) {
 	s.Users = nil
 	wantStatus(t, do(t, s, infoA, "POST", "/xuacs/setuserpin.ashx", "xon/5", b), "HTTP/1.0 501")
 }
+
+// A console signed in to a user reaches service 5 with the user as principal
+// (observed: setuserpin answered 403 before this was handled).
+func TestAccountScreensWorkInAUserSession(t *testing.T) {
+	s, _ := manageServer(t)
+	user := xbfeature.Info{PrincipalID: userX, CoreAccountID: "acct1", XUID: userXNum, ServiceID: 5}
+	resp := do(t, s, user, "POST", "/xuacs/setuserpin.ashx", "xon/5", u64(nil, userXNum))
+	wantStatus(t, resp, "HTTP/1.0 200 OK\r\nX-Err: 0\r\n")
+	b := u64(u64(nil, userXNum), 0x1234)
+	b = append(b, make([]byte, 12)...)
+	wantStatus(t, do(t, s, user, "POST", "/xuacs/getsubscriptionstatus.ashx", "xon/5", b), "HTTP/1.0 200 OK")
+	// Still no anonymous access.
+	user.CoreAccountID = ""
+	wantStatus(t, do(t, s, user, "POST", "/xuacs/setuserpin.ashx", "xon/5", u64(nil, userXNum)), "HTTP/1.0 403")
+}

@@ -254,7 +254,10 @@ func (s *Server) handle(ctx context.Context, info xbfeature.Info, req *http.Requ
 	}
 	// Only a provisioned console may ask. The gateway bound this identity from
 	// the validated ticket; the machine id inside the body is only compared.
-	if !xbaccountapi.ValidMachineID(info.PrincipalID) || info.CoreAccountID == "" {
+	// The account screens run in a user session (info.XUID set, PrincipalID = the
+	// XUID); signup calls need the device session (PrincipalID = machine id).
+	userOK := info.XUID != 0 && s.manageRoute(path) != nil
+	if info.CoreAccountID == "" || !xbaccountapi.ValidMachineID(info.PrincipalID) && !userOK {
 		return status(403)
 	}
 	if !s.allow(info.PrincipalID) {

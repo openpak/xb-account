@@ -117,6 +117,9 @@ func xuidOf(body []byte) uint64 { return binary.LittleEndian.Uint64(body) }
 
 // machineOK compares the machine id the body carries at off with the gateway-bound one.
 func machineOK(body []byte, off int, info xbfeature.Info) bool {
+	if info.XUID != 0 && !xbaccountapi.ValidMachineID(info.PrincipalID) { // user session: the principal is the XUID, ownership is checked per call
+		return true
+	}
 	return machineMatches(binary.LittleEndian.Uint64(body[off:]), info.PrincipalID)
 }
 
