@@ -32,7 +32,7 @@ jobs:
         run: |
           umask 077
           printf 'machine github.com login x-access-token password %s\n' "$GITHUB_TOKEN" > "$RUNNER_TEMP/netrc"
-          podman run --rm -v "$PWD:/src:Z" -v "$RUNNER_TEMP/netrc:/root/.netrc:ro,Z" -w /src \
+          podman run --rm --pull=newer --platform "linux/$(podman info --format '{{.Host.Arch}}')" -v "$PWD:/src:Z" -v "$RUNNER_TEMP/netrc:/root/.netrc:ro,Z" -w /src \
             -e GOWORK=off -e GOFLAGS=-buildvcs=false -e 'GOPRIVATE=github.com/openpak/*' \
             docker.io/library/golang:1.26-bookworm sh -ec '
               go vet ./...
