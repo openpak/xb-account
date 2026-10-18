@@ -194,6 +194,13 @@ func (p *Provisioner) Finalize(ctx context.Context, r FinalizeRequest) (Result, 
 	if err != nil {
 		return Result{}, ErrUnavailable
 	}
+	acct, err := p.Core.GetAccount(ctx, rec.CoreAccountID)
+	if err != nil {
+		return Result{}, ErrUnavailable
+	}
+	if acct.Handle != "" && r.Gamertag != acct.Handle {
+		return Result{}, ErrInvalid
+	}
 	ch := sha256.Sum256([]byte(r.Challenge))
 	if subtle.ConstantTimeCompare(ch[:], rec.ChallengeHash[:]) != 1 || r.MachineID != rec.MachineID {
 		return Result{}, ErrToken

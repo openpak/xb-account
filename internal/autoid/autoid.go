@@ -140,7 +140,12 @@ func (s *Service) Ensure(ctx context.Context, account string) (bool, error) {
 			return false, err
 		}
 		for attempt := 0; attempt < 12; attempt++ {
-			tag := Gamertag(acct.Name, account, attempt)
+			tag := acct.Handle
+			if tag == "" {
+				tag = Gamertag(acct.Name, account, attempt)
+			} else if attempt > 0 {
+				break
+			}
 			if !xbaccountapi.ValidGamertag(tag) {
 				continue
 			}

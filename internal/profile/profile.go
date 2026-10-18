@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package profile owns the gamertag of an OpenPak account's Xbox identity. The
-// gamertag is its own field: the core display name is only the default used
-// once, when the identity is first generated (internal/autoid). It changes only
-// through SetGamertag, which is called by the web side on behalf of an
-// authenticated account, never by a console.
+// Package profile applies the canonical core handle to an existing Xbox identity
+// during the reviewed alpha migration. It preserves the XUID and credentials;
+// the internal provisioner endpoint cannot choose a different populated handle.
 package profile
 
 import (
@@ -71,7 +69,17 @@ func (s *Service) SetGamertag(ctx context.Context, r Request) (Result, error) {
 	if r.Account == "" || len(r.Gamertag) > 15 || !xbaccountapi.ValidGamertag(r.Gamertag) || len(r.RequestID) > 64 || len(r.Actor) > 128 {
 		return Result{}, ErrInvalid
 	}
-	if Reserved(r.Gamertag) {
+	acct, err := s.Core.GetAccount(ctx, r.Account)
+	if errors.Is(err, core.ErrNotFound) {
+		return Result{}, ErrNoIdentity
+	}
+	if err != nil {
+		return Result{}, ErrUnavailable
+	}
+	if acct.Handle != "" && r.Gamertag != acct.Handle {
+		return Result{}, ErrInvalid
+	}
+	if acct.Handle == "" && Reserved(r.Gamertag) {
 		return Result{}, ErrReserved
 	}
 	defer projection.Lock()() // serialises with auto-identity creation and enrolment

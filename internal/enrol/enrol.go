@@ -556,6 +556,13 @@ func (s *Service) CompleteSignup(ctx context.Context, machineID, typedCode, game
 		}
 		return Signup{}, ErrUnavailable
 	}
+	acct, err := s.Core.GetAccount(ctx, d.CoreAccountID)
+	if err != nil {
+		return Signup{}, ErrUnavailable
+	}
+	if acct.Handle != "" && gamertag != acct.Handle {
+		return Signup{}, ErrInvalid
+	}
 	if free, err := s.Store.NameAvailable(ctx, gamertag, d.CoreAccountID); err != nil {
 		return Signup{}, ErrUnavailable
 	} else if !free {

@@ -174,3 +174,26 @@ func TestDisplayNameChangeDoesNotRenameAfterCreation(t *testing.T) {
 		t.Fatalf("gamertag followed the display name: %q", u.Gamertag)
 	}
 }
+
+func TestHandleIsUsedVerbatimWithoutCollisionSuffix(t *testing.T) {
+	s, c, db := setup(t)
+	ctx := context.Background()
+	c.AddAccount("handle-owner", pb.AccountStatus_ACCOUNT_STATUS_ACTIVE)
+	c.Names = map[string]string{"handle-owner": "Aurora Player"}
+	c.Handles = map[string]string{"handle-owner": "auroraone"}
+	if created, err := s.Ensure(ctx, "handle-owner"); err != nil || !created {
+		t.Fatal(created, err)
+	}
+	u, ok, err := db.ActiveUserOf(ctx, "handle-owner")
+	if err != nil || !ok || u.Gamertag != "auroraone" {
+		t.Fatalf("verbatim handle: %+v %v", u, err)
+	}
+	c.AddAccount("collision", pb.AccountStatus_ACCOUNT_STATUS_ACTIVE)
+	c.Handles["collision"] = "auroraone"
+	if _, err := s.Ensure(ctx, "collision"); err == nil {
+		t.Fatal("a collision invented a derived name")
+	}
+	if _, ok, err := db.ActiveUserOf(ctx, "collision"); err != nil || ok {
+		t.Fatal("collision created a different identity", err)
+	}
+}
