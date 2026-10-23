@@ -7,7 +7,7 @@
 //	POST /xuacs/reservename.ashx HTTP/1.0
 //	Content-type: xon/5
 //
-// The wire format is documented in workspace docs/xbox/account-service-protocol.md
+// The wire format is documented in internal research notes
 // (facts from static analysis of the dashboard and from captures). Only
 // reservename is implemented; every other service-5 path answers 501 and never
 // a made-up success. No account, user or link is created here: reservename

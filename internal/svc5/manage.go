@@ -15,7 +15,7 @@ import (
 )
 
 // Dashboard status values used by the account-management calls (RE, see
-// docs/xbox/account-service-protocol.md section 7).
+// internal research notes section 7).
 const (
 	errBadCard = 0x80154003 // "You have entered an invalid credit card number."
 	errBanned  = 0x80154005 // "This account is currently banned from Xbox Live."

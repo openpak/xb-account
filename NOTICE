@@ -14,5 +14,4 @@ Xombie-derived code in this repository (audit 2026-10-17):
   internal/svc5 (service 5 presence/signup message layouts and test vectors taken from the Xombie codec, libs/xblive).
 
 No Insignia, leaked Microsoft source or other third-party proprietary material
-was used. Protocol behaviour is documented in https://github.com/openpak/docs
-(xbox/). The legacy Rust workspace stays in openpak/xbox-live for reference.
+was used. Protocol behaviour is documented in OpenPak's internal research notes. The legacy Rust workspace stays in openpak/xbox-live for reference.

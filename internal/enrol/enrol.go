@@ -18,7 +18,7 @@
 //
 // A device whose signup is pending is admitted by ResolveDevice (active
 // device, active core link, active account), so MACS works and the dashboard
-// can reach service 5. See docs/xbox/enrolment-contract.md for the state
+// can reach service 5. See internal research notes for the state
 // machine.
 package enrol
 

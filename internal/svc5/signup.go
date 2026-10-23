@@ -16,7 +16,7 @@ import (
 )
 
 // Status values for the subscription-code and signup steps (dashboard table,
-// see docs/xbox/account-service-protocol.md section 2).
+// see internal research notes section 2).
 const (
 	errCodeInvalid = 0x80154007 // "This subscription code is invalid."
 	errCodeUsed    = 0x80154009 // "This subscription code is already in use."

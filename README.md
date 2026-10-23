@@ -76,7 +76,7 @@ supplying the machine key: a console tool registers a pending enrolment through
 approves it for a core account (SPIFFE `xb-provisioner`), and the device is
 linked (ReserveLink/ActivateLink, XUID reserved, no gamertag yet). Subscription
 codes are issued by the website and consumed by `enrol.CompleteSignup`. Routes,
-states, limits and error codes: workspace `docs/xbox/enrolment-contract.md`.
+states, limits and error codes: internal research notes.
 The service-5 wire handling for verifyvoucher/createowneracct is not implemented.
 
 ## Repository
