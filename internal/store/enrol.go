@@ -132,7 +132,7 @@ func (s *Store) CreateEnrolment(ctx context.Context, e Enrolment, maxPending int
 	return s.tx(ctx, func(t *sql.Tx) error {
 		var st string
 		err := t.QueryRowContext(ctx, `SELECT status FROM devices WHERE machine_id=?`, e.MachineID).Scan(&st)
-		if err == nil && (xbaccountapi.Status(st) == xbaccountapi.StatusActive || xbaccountapi.Status(st) == xbaccountapi.StatusBanned) {
+		if err == nil && held(xbaccountapi.Status(st)) {
 			return ErrMachineActive
 		} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -219,7 +219,7 @@ func (s *Store) CommitEnrolment(ctx context.Context, e Enrolment) error {
 			_, err = t.ExecContext(ctx, `INSERT INTO devices(machine_id,core_account_id,status,proof_mac,proof_sealed,xuid,link_id,signup,created,updated) VALUES(?,?,'active',?,?,?,?,?,?,?)`,
 				e.MachineID, e.CoreAccountID, e.ProofMAC, e.ProofSealed, e.XUID, e.LinkID, SignupAwaitingGamertag, n, n)
 		case err != nil:
-		case xbaccountapi.Status(st) == xbaccountapi.StatusActive, xbaccountapi.Status(st) == xbaccountapi.StatusBanned:
+		case held(xbaccountapi.Status(st)):
 			return ErrConflict
 		default: // revoked, unlinked or deleted earlier: revive for this account
 			_, err = t.ExecContext(ctx, `UPDATE devices SET core_account_id=?,status='active',proof_mac=?,proof_sealed=?,xuid=?,link_id=?,signup=?,updated=? WHERE machine_id=?`,

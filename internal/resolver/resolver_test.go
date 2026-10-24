@@ -111,7 +111,7 @@ func TestLiveCoreDenialsBeforeAnyEventArrives(t *testing.T) {
 	}
 	w.core.AddAccount("acct1", pb.AccountStatus_ACCOUNT_STATUS_DELETION_PENDING)
 	w.core.SetLinkState(l.LinkID, pb.LinkState_LINK_STATE_ACTIVE)
-	if s := denial(w.user()); s != xbaccountapi.StatusDeleted {
+	if s := denial(w.user()); s != xbaccountapi.StatusRevoked {
 		t.Fatalf("deletion pending: %q", s)
 	}
 }
@@ -243,11 +243,64 @@ func TestDeletionAndCredentialRevocation(t *testing.T) {
 	}
 	w.core.Emit("account_delete_started", "acct1", "", "")
 	process(t, w)
+	if denial(w.user()) != xbaccountapi.StatusRevoked {
+		t.Fatal("user not suspended")
+	}
+	if u, _ := w.db.GetUser(ctx, w.xuid); u.Status != store.StatusSuspended || u.Gamertag != "Player One" {
+		t.Fatalf("grace period: %+v", u)
+	}
+	if d, _ := w.db.GetDevice(ctx, machine); d.Status != xbaccountapi.StatusRevoked {
+		t.Fatalf("revoked device changed at delete start: %v", d.Status)
+	}
+	w.core.Emit("account_deleted", "acct1", "", "")
+	process(t, w)
 	if denial(w.user()) != xbaccountapi.StatusDeleted || denial(w.device()) != xbaccountapi.StatusDeleted {
 		t.Fatal("not deleted")
 	}
 	if u, _ := w.db.GetUser(ctx, w.xuid); u.Gamertag != "" {
 		t.Fatal("gamertag retained after deletion")
+	}
+	if _, err := w.db.GetUserByGamertag(ctx, "Player One"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatal("alias must be released at final erasure")
+	}
+}
+
+func TestDeletionGracePeriodRestore(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	w.core.Emit("account_delete_started", "acct1", "", "")
+	process(t, w)
+	u, _ := w.db.GetUser(ctx, w.xuid)
+	d, _ := w.db.GetDevice(ctx, machine)
+	if u.Status != store.StatusSuspended || d.Status != store.StatusSuspended {
+		t.Fatalf("%v %v", u.Status, d.Status)
+	}
+	// Local status denies even while the core still says active.
+	if denial(w.user()) != xbaccountapi.StatusRevoked || denial(w.device()) != xbaccountapi.StatusRevoked {
+		t.Fatal("suspended principal admitted")
+	}
+	// The gamertag stays held: it still resolves to this user.
+	if g, err := w.db.GetUserByGamertag(ctx, "Player One"); err != nil || g.XUID != w.xuid {
+		t.Fatalf("gamertag released during grace: %+v %v", g, err)
+	}
+	if bound, _ := w.db.DeviceBoundElsewhere(ctx, machine, "acct2"); !bound {
+		t.Fatal("suspended device free for another account")
+	}
+	revs, _ := w.res.Poll(ctx, 0, 10, 0)
+	if len(revs) != 1 || revs[0].Reason != xbaccountapi.StatusRevoked {
+		t.Fatalf("%+v", revs)
+	}
+	w.core.Emit("account_restored", "acct1", "", "")
+	process(t, w)
+	p, err := w.res.ResolveUser(ctx, w.xuid)
+	if err != nil || p.Gamertag != "Player One" {
+		t.Fatalf("restore: %+v %v", p, err)
+	}
+	if err := w.device(); err != nil {
+		t.Fatalf("device after restore: %v", err)
+	}
+	if more, _ := w.res.Poll(ctx, revs[0].Seq, 10, 0); len(more) != 0 {
+		t.Fatalf("restore is not a revocation: %+v", more)
 	}
 }
 

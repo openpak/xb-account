@@ -356,7 +356,7 @@ func (s *Store) CommitProvision(ctx context.Context, p Provision) error {
 			_, err = t.ExecContext(ctx, `INSERT INTO devices(machine_id,core_account_id,status,proof_mac,proof_sealed,created,updated) VALUES(?,?,'active',?,?,?,?)`, p.MachineID, p.CoreAccountID, p.ProofMAC, p.ProofSealed, n, n)
 		case err != nil:
 		case xbaccountapi.Status(st) == xbaccountapi.StatusActive && acct != p.CoreAccountID,
-			xbaccountapi.Status(st) == xbaccountapi.StatusBanned:
+			xbaccountapi.Status(st) == xbaccountapi.StatusBanned, xbaccountapi.Status(st) == StatusSuspended:
 			return ErrConflict
 		default: // re-provisioning the same account's device, or reviving a revoked one
 			_, err = t.ExecContext(ctx, `UPDATE devices SET core_account_id=?,status='active',xuid='',link_id='',signup='complete',proof_mac=?,proof_sealed=?,updated=? WHERE machine_id=?`, p.CoreAccountID, p.ProofMAC, p.ProofSealed, n, p.MachineID)
@@ -382,7 +382,7 @@ func (s *Store) DeviceBoundElsewhere(ctx context.Context, machineID, account str
 	if errors.Is(err, ErrNotFound) {
 		return false, nil
 	}
-	return err == nil && d.CoreAccountID != account && (d.Status == xbaccountapi.StatusActive || d.Status == xbaccountapi.StatusBanned), err
+	return err == nil && d.CoreAccountID != account && held(d.Status), err
 }
 
 // ---- events and revocations ----
@@ -396,6 +396,16 @@ type Change struct {
 	SetAccount *StatusChange            // applies to the users and/or devices of AccountID
 	UnlinkXUID string                   // user unlinked (also revokes the account's devices)
 	Emit       *xbaccountapi.Revocation // at most one per event (event_id is unique)
+}
+
+// StatusSuspended is a principal whose core account is closed but still inside
+// its grace period: denied, but its gamertag and device stay held for it. It is
+// local to xb-account; the resolver reports it as revoked.
+const StatusSuspended xbaccountapi.Status = "suspended"
+
+// held reports whether a device status still belongs to its account.
+func held(s xbaccountapi.Status) bool {
+	return s == xbaccountapi.StatusActive || s == xbaccountapi.StatusBanned || s == StatusSuspended
 }
 
 // StatusChange moves principals from any status in From to To.

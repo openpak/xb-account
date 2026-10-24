@@ -55,8 +55,11 @@ Contract `xb-common/xbaccountapi` (mTLS; xb-auth and xb-gateway): `ResolveUser`,
 resolve re-reads core (link + account status) and denies banned, unlinked,
 revoked, deleted or unavailable. Revocations are a durable outbox fed by the
 core event cursor (`account_banned/unbanned`, `link_unlinked`,
-`account_delete_started/deleted`, `credential_revoked`), idempotent by event id.
-An unlink also revokes the account's devices.
+`account_delete_started/restored/deleted`, `credential_revoked`), idempotent by
+event id. An unlink also revokes the account's devices. A closed account is
+suspended for the core's grace period (denied as revoked, gamertag held),
+comes back with the same gamertag on `account_restored`, and only
+`account_deleted` (final erasure) releases the gamertag.
 
 Provisioning (`xb-provisioner` begins, `xb-auth` finalizes): web approval mints
 a 10-minute single-use token bound to a core account, machine ID and a

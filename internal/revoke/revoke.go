@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package revoke consumes the account-core event stream with a durable cursor
-// and turns relevant events (ban, unban, unlink, deletion, credential
-// revocation) into local status changes plus entries on the Revocations
+// and turns relevant events (ban, unban, unlink, deletion and restore,
+// credential revocation) into local status changes plus entries on the Revocations
 // stream. Processing is idempotent: each event applies its effect and moves
 // the cursor in one transaction, and a redelivered event_id is a no-op.
 package revoke
@@ -26,7 +26,7 @@ type Processor struct {
 
 var (
 	live     = []xbaccountapi.Status{xbaccountapi.StatusActive, xbaccountapi.StatusBanned}
-	anything = []xbaccountapi.Status{xbaccountapi.StatusActive, xbaccountapi.StatusBanned, xbaccountapi.StatusUnlinked, xbaccountapi.StatusRevoked}
+	anything = []xbaccountapi.Status{xbaccountapi.StatusActive, xbaccountapi.StatusBanned, xbaccountapi.StatusUnlinked, xbaccountapi.StatusRevoked, store.StatusSuspended}
 )
 
 // Plan maps one core event to its local change. Unknown or foreign events
@@ -50,7 +50,19 @@ func Plan(e core.Event) store.Change {
 			c.UnlinkXUID = e.SubjectID
 			c.Emit = &xbaccountapi.Revocation{Scope: xbaccountapi.ScopeUser, PrincipalID: e.SubjectID, CoreAccountID: e.AccountID, Reason: xbaccountapi.StatusUnlinked}
 		}
-	case "account_delete_started", "account_deleted":
+	case "account_delete_started":
+		// The core's grace period: the account can still come back, so its
+		// principals are suspended and the gamertag stays held. Sessions end
+		// now; suspended is "revoked" on the wire (xbaccountapi has no
+		// suspended status).
+		c.SetAccount = &store.StatusChange{From: live, To: store.StatusSuspended, Users: true, Devices: true}
+		c.Emit = acct(xbaccountapi.StatusRevoked)
+	case "account_restored":
+		// Back within the grace period, with the same gamertag. A banned
+		// account is still denied: the resolver re-reads the core status.
+		c.SetAccount = &store.StatusChange{From: []xbaccountapi.Status{store.StatusSuspended}, To: xbaccountapi.StatusActive, Users: true, Devices: true}
+	case "account_deleted":
+		// Final erasure: only now is the gamertag released.
 		c.SetAccount = &store.StatusChange{From: anything, To: xbaccountapi.StatusDeleted, Users: true, Devices: true, ReleaseGamertag: true}
 		c.Emit = acct(xbaccountapi.StatusDeleted)
 	case "credential_revoked":

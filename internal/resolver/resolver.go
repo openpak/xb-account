@@ -33,6 +33,9 @@ var (
 )
 
 func denied(k xbaccountapi.Kind, id, acct string, s xbaccountapi.Status) error {
+	if s == store.StatusSuspended {
+		s = xbaccountapi.StatusRevoked // no suspended status on the wire
+	}
 	return &xbaccountapi.DeniedError{Principal: xbaccountapi.Principal{Kind: k, PrincipalID: id, CoreAccountID: acct, Status: s}}
 }
 
@@ -42,7 +45,9 @@ func accountStatus(s pb.AccountStatus) xbaccountapi.Status {
 		return xbaccountapi.StatusActive
 	case pb.AccountStatus_ACCOUNT_STATUS_BANNED:
 		return xbaccountapi.StatusBanned
-	default: // deletion pending, deleted, unspecified: never admit
+	case pb.AccountStatus_ACCOUNT_STATUS_DELETION_PENDING:
+		return xbaccountapi.StatusRevoked // suspended: it may still be restored
+	default: // deleted, unspecified: never admit
 		return xbaccountapi.StatusDeleted
 	}
 }
