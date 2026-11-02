@@ -29,9 +29,8 @@ podman build --secret id=netrc,src=$HOME/.netrc -t ghcr.io/openpak/xb-account:de
 ## Docs
 
 - [Protocol](docs/protocol.md)
-- [Evidence](docs/evidence.md)
 - [Deploy](docs/deploy.md)
-- [Notes](docs/notes.md)
+- [Provenance](docs/provenance.md)
 - [Permanent account handles](docs/handles.md)
 
 ## Licence

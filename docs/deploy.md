@@ -23,3 +23,7 @@ Configuration (all secrets are service-managed files):
 - Image: `podman build --secret id=netrc,src=$HOME/.netrc -t ghcr.io/openpak/xb-account:dev .`
 - Release: push a `vX.Y.Z` tag; `.github/workflows/release.yml` (tags and manual dispatch only) tests and publishes the multi-arch image. CI reads xb-common with the job's `GITHUB_TOKEN` through a netrc build secret; nothing secret is in git or in the image.
 - `deploy/` holds the env example and a Podman quadlet example (digests in it are examples; production pins its own).
+
+## State
+
+State lives in an embedded SQLite file (`XB_DB_PATH`, pure-Go modernc driver, WAL), chosen over Postgres because the state is small and single-writer, needs no new database/role in production, and keeps the image CGO-free. The core's Postgres is never shared. `XB_PEPPER_FILE` holds >=32 bytes of hex used to key the device-proof MAC (proofs are never stored).

@@ -52,3 +52,7 @@ linked (ReserveLink/ActivateLink, XUID reserved, no gamertag yet). Subscription
 codes are issued by the website and consumed by `enrol.CompleteSignup`. Routes,
 states, limits and error codes: internal research notes.
 The service-5 wire handling for verifyvoucher/createowneracct is not implemented.
+
+## Verification
+
+Generic password verification is not Kerberos proof. Neither a core password check, a provisioning token, nor the stored device proof MAC authenticates a native Kerberos exchange; xb-auth must validate pre-authentication itself. This service calls account core's gRPC Links and Identity contracts and never reads core tables or exports passwords, Kerberos keys, email or web sessions.
