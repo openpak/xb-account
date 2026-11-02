@@ -63,12 +63,17 @@ func newSignupServer(t *testing.T, v error, s *fakeS) *Server {
 
 func TestVerifyVoucher(t *testing.T) {
 	code := "ABCDEFGHJKLMNPQRSTUVWXYZ2"
-	for _, path := range []string{"/xuacs/verifyvoucher.ashx", "/xuacs/verifyvouchergetoffer.ashx"} {
-		r := do(t, newSignupServer(t, nil, &fakeS{}), infoA, "POST", path, "xon/5", vbody(code))
-		want := binary.LittleEndian.AppendUint64(nil, OfferID)
-		if !strings.HasPrefix(r, "HTTP/1.0 200") || !strings.Contains(r, "X-Err: 0\r\n") || !strings.HasSuffix(r, string(want)) {
-			t.Fatalf("%s: %q", path, r)
-		}
+	r := do(t, newSignupServer(t, nil, &fakeS{}), infoA, "POST", "/xuacs/verifyvoucher.ashx", "xon/5", vbody(code))
+	want := binary.LittleEndian.AppendUint64(nil, OfferID)
+	if !strings.HasPrefix(r, "HTTP/1.0 200") || !strings.Contains(r, "X-Err: 0\r\n") || !strings.HasSuffix(r, string(want)) {
+		t.Fatalf("verifyvoucher: %q", r)
+	}
+	// getoffer carries a 12-byte header (WORD count 0: a prepaid code selects
+	// no offer list) with the offer id at offset 4 (RE of xonlinedash 0x121c71).
+	r = do(t, newSignupServer(t, nil, &fakeS{}), infoA, "POST", "/xuacs/verifyvouchergetoffer.ashx", "xon/5", vbody(code))
+	_, bodyPart, _ := strings.Cut(r, "\r\n\r\n")
+	if !strings.HasPrefix(r, "HTTP/1.0 200") || !strings.Contains(r, "X-Err: 0\r\n") || bodyPart != "\x00\x00\x00\x00"+string(want) {
+		t.Fatalf("getoffer: %q", r)
 	}
 	for _, c := range []struct {
 		err  error

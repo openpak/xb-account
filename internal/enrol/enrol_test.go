@@ -345,6 +345,42 @@ func TestSignupConsumesSubscriptionCode(t *testing.T) {
 	}
 }
 
+func TestSignupReplacesAutoIdentity(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	approved(t, e)
+	d, err := e.db.GetDevice(ctx, machine)
+	if err != nil || d.XUID == "" {
+		t.Fatalf("device: %+v %v", d, err)
+	}
+	// Production state: the autoid consumer adopted the device link, so a
+	// users row (same XUID) plus marker admit the signup SG session.
+	if err := e.db.CommitAuto(ctx, store.User{XUID: d.XUID, CoreAccountID: "acct1", Gamertag: "Auto Tag", LinkID: d.LinkID}); err != nil {
+		t.Fatal(err)
+	}
+	iss, err := e.s.Vouchers.Issue(ctx, "acct1", machine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	su, err := e.s.CompleteSignup(ctx, machine, iss.Code, "Player One")
+	if err != nil || su.Gamertag != "Player One" || su.XUID != d.XUID {
+		t.Fatalf("signup over auto: %+v %v", su, err)
+	}
+	u, err := e.db.GetUser(ctx, d.XUID)
+	if err != nil || u.Gamertag != "Player One" || u.Status != xbaccountapi.StatusActive {
+		t.Fatalf("replaced user: %+v %v", u, err)
+	}
+	if _, ok, err := e.db.AutoIdentity(ctx, "acct1"); err != nil || ok {
+		t.Fatalf("marker survives: %v %v", ok, err)
+	}
+	if _, err := e.db.GetUserByGamertag(ctx, "player one"); err != nil {
+		t.Fatalf("new alias: %v", err)
+	}
+	if _, err := e.db.GetUserByGamertag(ctx, "auto tag"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("old alias survives: %v", err)
+	}
+}
+
 func TestVoucherNegatives(t *testing.T) {
 	ctx := context.Background()
 	t.Run("expired, wrong machine, wrong account, revoked by newer code", func(t *testing.T) {

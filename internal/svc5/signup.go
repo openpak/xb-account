@@ -69,9 +69,9 @@ func voucherStatus(err error) response {
 	return status(503)
 }
 
-// verifyVoucher answers verifyvoucher and verifyvouchergetoffer: the code is
-// checked for this device's own account without being consumed; success carries
-// the 8-byte offer id (client reader: 8 bytes at the start of the body).
+// verifyVoucher answers verifyvoucher: the code is checked for this device's
+// own account without being consumed; success carries the 8-byte offer id
+// (client reader: 8 bytes at the start of the body).
 func (s *Server) verifyVoucher(ctx context.Context, info xbfeature.Info, body []byte) response {
 	_, code, ok := parseVoucher(body)
 	if !ok {
@@ -81,6 +81,37 @@ func (s *Server) verifyVoucher(ctx context.Context, info xbfeature.Info, body []
 		return voucherStatus(err)
 	}
 	return response{code: 200, hasErr: true, body: binary.LittleEndian.AppendUint64(nil, OfferID)}
+}
+
+// verifyVoucherOffer answers verifyvouchergetoffer: the 5960 dashboard parses
+// the reply as WORD count + items (RE of xonlinedash 0x121c71). A prepaid
+// subscription code selects no offer list: count 0 with the offer id in the
+// 12-byte header, and the signup proceeds to createowneracct.
+func (s *Server) verifyVoucherOffer(ctx context.Context, info xbfeature.Info, body []byte) response {
+	_, code, ok := parseVoucher(body)
+	if !ok {
+		return status(400)
+	}
+	if err := s.Vouchers.Check(ctx, info.PrincipalID, code); err != nil {
+		return voucherStatus(err)
+	}
+	out := make([]byte, 12)
+	binary.LittleEndian.PutUint64(out[4:12], OfferID)
+	return response{code: 200, hasErr: true, body: out}
+}
+
+// buildOfferRecord is the client's offer record: a 21-byte binary header, a
+// u32 text length and a UTF-16LE INI with a [SubInfo] section (VERSION must
+// be 1; TITLE; PURCHASE_DETAILS).
+func buildOfferRecord() []byte {
+	text := encodeINI("SubInfo", [][2]string{
+		{"VERSION", "1"},
+		{"TITLE", "OpenPak Xbox Live"},
+		{"PURCHASE_DETAILS", "Create your OpenPak Xbox Live account. No payment is needed."},
+	})
+	out := make([]byte, 0x15, 0x15+len(text))
+	binary.LittleEndian.PutUint32(out[0x11:], uint32(len(text)))
+	return append(out, text...)
 }
 
 // offeringDetails answers /xbos/OfferingDetailsNoUser.ashx. Request body (27
@@ -98,14 +129,7 @@ func (s *Server) offeringDetails(_ context.Context, info xbfeature.Info, body []
 	if binary.LittleEndian.Uint64(body[13:21]) != OfferID {
 		return xerr(errCodeInvalid)
 	}
-	text := encodeINI("SubInfo", [][2]string{
-		{"VERSION", "1"},
-		{"TITLE", "OpenPak Xbox Live"},
-		{"PURCHASE_DETAILS", "Create your OpenPak Xbox Live account. No payment is needed."},
-	})
-	out := make([]byte, 0x15, 0x15+len(text))
-	binary.LittleEndian.PutUint32(out[0x11:], uint32(len(text)))
-	return response{code: 200, hasErr: true, body: append(out, text...)}
+	return response{code: 200, hasErr: true, body: buildOfferRecord()}
 }
 
 func machineMatches(id uint64, principal string) bool {

@@ -292,9 +292,13 @@ func (s *Server) route(path string) handlerFunc {
 	switch path {
 	case "/xuacs/reservename.ashx":
 		return s.reserveName
-	case "/xuacs/verifyvoucher.ashx", "/xuacs/verifyvouchergetoffer.ashx":
+	case "/xuacs/verifyvoucher.ashx":
 		if s.Vouchers != nil {
 			return s.verifyVoucher
+		}
+	case "/xuacs/verifyvouchergetoffer.ashx":
+		if s.Vouchers != nil {
+			return s.verifyVoucherOffer
 		}
 	case "/xuacs/createowneracct.ashx":
 		if s.Signups != nil && s.AccountBlob != nil {

@@ -380,7 +380,47 @@ func (s *Store) CommitSignup(ctx context.Context, machineID string, hash []byte,
 		if _, err := t.ExecContext(ctx, `UPDATE vouchers SET state='consumed',consumed_machine=?,updated=? WHERE code_hash=? AND state='issued'`, machineID, n, hash); err != nil {
 			return err
 		}
-		if _, err := t.ExecContext(ctx, `INSERT INTO users(xuid,core_account_id,gamertag,link_id,status,created,updated) VALUES(?,?,?,?,'active',?,?)`, xuid, acct, gamertag, linkID, n, n); err != nil {
+		// Retire-and-replace the automatic identity: a provisioned
+		// account carries an auto users row (same device XUID) so the
+		// gateway admits the signup session; the real enrolment
+		// replaces it with the dashboard's chosen tag instead of
+		// inserting a second row for the same XUID.
+		var auto string
+		if err := t.QueryRowContext(ctx, `SELECT xuid FROM auto_identities WHERE core_account_id=?`, acct).Scan(&auto); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if auto != "" && auto != xuid {
+			// Seed/legacy auto identity under another XUID: unlink
+			// it and free its alias; the device row is a fresh INSERT.
+			if _, err := t.ExecContext(ctx, `UPDATE users SET status='unlinked',updated=? WHERE xuid=?`, n, auto); err != nil {
+				return err
+			}
+			if _, err := t.ExecContext(ctx, `DELETE FROM gamertag_aliases WHERE xuid=?`, auto); err != nil {
+				return err
+			}
+			if _, err := t.ExecContext(ctx, `DELETE FROM auto_identities WHERE core_account_id=?`, acct); err != nil {
+				return err
+			}
+			auto = ""
+		}
+		if auto == xuid {
+			res, err := t.ExecContext(ctx, `UPDATE users SET gamertag=?,link_id=?,status='active',updated=? WHERE xuid=?`, gamertag, linkID, n, xuid)
+			if err != nil {
+				return err
+			}
+			if aff, _ := res.RowsAffected(); aff == 0 {
+				// Marker without a row: fall back to INSERT.
+				if _, err := t.ExecContext(ctx, `INSERT INTO users(xuid,core_account_id,gamertag,link_id,status,created,updated) VALUES(?,?,?,?,'active',?,?)`, xuid, acct, gamertag, linkID, n, n); err != nil {
+					return conflict(err)
+				}
+			}
+			if _, err := t.ExecContext(ctx, `DELETE FROM gamertag_aliases WHERE xuid=?`, xuid); err != nil {
+				return err
+			}
+			if _, err := t.ExecContext(ctx, `DELETE FROM auto_identities WHERE core_account_id=?`, acct); err != nil {
+				return err
+			}
+		} else if _, err := t.ExecContext(ctx, `INSERT INTO users(xuid,core_account_id,gamertag,link_id,status,created,updated) VALUES(?,?,?,?,'active',?,?)`, xuid, acct, gamertag, linkID, n, n); err != nil {
 			return conflict(err)
 		}
 		if _, err := t.ExecContext(ctx, `INSERT INTO gamertag_aliases(alias_lower,xuid,created) VALUES(?,?,?)`, strings.ToLower(gamertag), xuid, n); err != nil {
