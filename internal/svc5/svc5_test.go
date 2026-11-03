@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/openpak/xb-account/internal/pgdb"
 	"github.com/openpak/xb-account/internal/store"
 	"github.com/openpak/xb-common/xbfeature"
 )
@@ -43,7 +43,7 @@ func (c *memConn) Send(b []byte) error { c.out.Write(b); return nil }
 
 func newServer(t *testing.T) (*Server, *store.Store) {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "x.db"), bytes.Repeat([]byte{1}, 32))
+	db, err := store.Open(pgdb.TestDSN(t), bytes.Repeat([]byte{1}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}

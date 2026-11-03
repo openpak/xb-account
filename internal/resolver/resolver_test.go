@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/openpak/xb-account/internal/core"
 	pb "github.com/openpak/xb-account/internal/corepb"
 	"github.com/openpak/xb-account/internal/coretest"
+	"github.com/openpak/xb-account/internal/pgdb"
 	"github.com/openpak/xb-account/internal/provision"
 	"github.com/openpak/xb-account/internal/resolver"
 	"github.com/openpak/xb-account/internal/revoke"
@@ -37,7 +37,7 @@ type world struct {
 
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "x.db"), bytes.Repeat([]byte{1}, 32))
+	db, err := store.Open(pgdb.TestDSN(t), bytes.Repeat([]byte{1}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +321,7 @@ func TestProcessorIdempotentAndDurable(t *testing.T) {
 		t.Fatalf("duplicate revocations: %+v", revs)
 	}
 	// Cursor survives a restart.
-	path := filepath.Join(t.TempDir(), "reopen.db")
+	path := pgdb.TestDSN(t)
 	db1, _ := store.Open(path, bytes.Repeat([]byte{1}, 32))
 	db1.ApplyChange(ctx, store.Change{EventID: "e1", Version: 41})
 	db1.Close()

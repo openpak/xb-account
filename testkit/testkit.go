@@ -8,8 +8,9 @@ package testkit
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"path/filepath"
+	"os"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	pb "github.com/openpak/xb-account/internal/corepb"
 	"github.com/openpak/xb-account/internal/coretest"
 	"github.com/openpak/xb-account/internal/enrol"
+	"github.com/openpak/xb-account/internal/pgdb"
 	"github.com/openpak/xb-account/internal/provision"
 	"github.com/openpak/xb-account/internal/resolver"
 	"github.com/openpak/xb-account/internal/revoke"
@@ -40,6 +42,7 @@ type Account struct {
 	Handler http.Handler
 	Core    *coretest.Core
 	db      *store.Store
+	drop    func()
 	proc    *revoke.Processor
 	// Enrol and Vouchers are the in-process services behind the enrolment
 	// routes, for tests that play the dashboard (CompleteSignup, Check).
@@ -64,15 +67,26 @@ func (a *Account) now() time.Time {
 }
 
 // New opens a store under dir. Close it when done.
+// It needs a Postgres named by XB_TEST_DATABASE_URL; the stack gets a private
+// schema that Close drops. dir is unused (kept for the callers' signature).
 func New(dir string) (*Account, error) {
-	db, err := store.Open(filepath.Join(dir, "xb-account.db"), []byte("0123456789abcdef0123456789abcdef"))
+	base := os.Getenv("XB_TEST_DATABASE_URL")
+	if base == "" {
+		return nil, errors.New("testkit: XB_TEST_DATABASE_URL not set")
+	}
+	dsn, drop, err := pgdb.TempDSN(base)
 	if err != nil {
+		return nil, err
+	}
+	db, err := store.Open(dsn, []byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		drop()
 		return nil, err
 	}
 	c := coretest.New()
 	res := &resolver.Resolver{Core: c, Store: db}
 	prov := &provision.Provisioner{Core: c, Store: db}
-	a := &Account{Core: c, db: db, proc: &revoke.Processor{Core: c, Store: db}}
+	a := &Account{Core: c, db: db, drop: drop, proc: &revoke.Processor{Core: c, Store: db}}
 	db.SetClock(a.now)
 	a.Vouchers = &voucher.Service{Core: c, Store: db, Now: a.now}
 	a.Enrol = &enrol.Service{Core: c, Store: db, Vouchers: a.Vouchers, Now: a.now}
@@ -80,7 +94,13 @@ func New(dir string) (*Account, error) {
 	return a, nil
 }
 
-func (a *Account) Close() error { return a.db.Close() }
+func (a *Account) Close() error {
+	err := a.db.Close()
+	if a.drop != nil {
+		a.drop()
+	}
+	return err
+}
 
 // AddActiveAccount creates an active core account (the web user).
 func (a *Account) AddActiveAccount(id string) {

@@ -26,4 +26,4 @@ Configuration (all secrets are service-managed files):
 
 ## State
 
-State lives in an embedded SQLite file (`XB_DB_PATH`, pure-Go modernc driver, WAL), chosen over Postgres because the state is small and single-writer, needs no new database/role in production, and keeps the image CGO-free. The core's Postgres is never shared. `XB_PEPPER_FILE` holds >=32 bytes of hex used to key the device-proof MAC (proofs are never stored).
+State lives in Postgres: schema `xb_account` of the shared `xbox` database, reached through `XB_ACCOUNT_DATABASE_URL` (required; the service refuses to start without it; the pool is capped at 3 connections). The service creates its schema and tables on start. Until v0.1.39 the state was an embedded SQLite file (`XB_DB_PATH`); that file is no longer read, it is kept on the volume as the pre-migration copy. The core's Postgres is never shared. `XB_PEPPER_FILE` holds >=32 bytes of hex used to key the device-proof MAC (proofs are never stored).

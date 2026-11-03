@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/openpak/xb-account/internal/core"
 	pb "github.com/openpak/xb-account/internal/corepb"
 	"github.com/openpak/xb-account/internal/coretest"
+	"github.com/openpak/xb-account/internal/pgdb"
 	"github.com/openpak/xb-account/internal/projection"
 	"github.com/openpak/xb-account/internal/store"
 	"github.com/openpak/xb-account/internal/voucher"
@@ -37,7 +37,7 @@ type env struct {
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "x.db"), bytes.Repeat([]byte{1}, 32))
+	db, err := store.Open(pgdb.TestDSN(t), bytes.Repeat([]byte{1}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}

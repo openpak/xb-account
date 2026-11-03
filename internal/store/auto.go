@@ -5,7 +5,9 @@ package store
 import (
 	"context"
 	"database/sql"
+
 	"errors"
+	"github.com/openpak/xb-account/internal/pgdb"
 	"github.com/openpak/xb-common/xbaccountapi"
 	"strings"
 )
@@ -45,7 +47,7 @@ func (s *Store) ActiveUserOf(ctx context.Context, account string) (User, bool, e
 // ErrConflict: the account already has a primary user, or the gamertag/xuid is taken.
 func (s *Store) CommitAuto(ctx context.Context, u User) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		if _, err := t.ExecContext(ctx, `INSERT INTO users(xuid,core_account_id,gamertag,link_id,status,created,updated) VALUES(?,?,?,?,'active',?,?)`,
 			u.XUID, u.CoreAccountID, u.Gamertag, u.LinkID, n, n); err != nil {
 			return conflict(err)
@@ -62,7 +64,7 @@ func (s *Store) CommitAuto(ctx context.Context, u User) error {
 // it): the user row becomes unlinked, its alias is freed, the marker is removed.
 func (s *Store) RetireAuto(ctx context.Context, account string) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		var xuid string
 		err := t.QueryRowContext(ctx, `SELECT xuid FROM auto_identities WHERE core_account_id=?`, account).Scan(&xuid)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -95,7 +97,7 @@ func (s *Store) HasDevice(ctx context.Context, account string) (bool, error) {
 // RenameUser changes a user's gamertag and alias. ErrConflict when the new tag is taken.
 func (s *Store) RenameUser(ctx context.Context, xuid, oldTag, newTag string) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		if _, err := t.ExecContext(ctx, `DELETE FROM gamertag_aliases WHERE xuid=? AND alias_lower=?`, xuid, strings.ToLower(oldTag)); err != nil {
 			return err
 		}
@@ -126,7 +128,7 @@ func (s *Store) AuditByRequest(ctx context.Context, account, requestID string) (
 // RenameUserAudited is RenameUser plus the audit row, atomically.
 func (s *Store) RenameUserAudited(ctx context.Context, account, xuid, oldTag, newTag, requestID, actor string) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		if _, err := t.ExecContext(ctx, `DELETE FROM gamertag_aliases WHERE xuid=? AND alias_lower=?`, xuid, strings.ToLower(oldTag)); err != nil {
 			return err
 		}

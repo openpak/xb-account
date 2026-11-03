@@ -4,13 +4,10 @@
 // (XUID), device principals (machine ID), gamertag aliases, provisioning
 // transactions, the core event cursor and the revocation outbox.
 //
-// Storage choice: embedded SQLite through the pure-Go modernc driver. The
-// state is small and single-writer (one xb-account instance), so a file on the
-// service's own volume avoids a new Postgres database, role and credentials in
-// production and keeps the image CGO-free and `scratch`-based. The account
-// core's Postgres (pgx) is not shared: this service never touches core tables.
-// If xb-account is ever replicated, move this package behind the same methods
-// onto Postgres; no caller depends on SQL.
+// Storage: Postgres (schema xb_account of the shared "xbox" database) through
+// pgx, so one database backup covers every Xbox service. The pool is small
+// (pgdb.MaxConns); write transactions are serialised in-process because one
+// xb-account instance owns the schema.
 package store
 
 import (
@@ -27,8 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openpak/xb-account/internal/pgdb"
 	"github.com/openpak/xb-common/xbaccountapi"
-	_ "modernc.org/sqlite"
 )
 
 var (
@@ -37,7 +34,7 @@ var (
 )
 
 type Store struct {
-	db     *sql.DB
+	db     *pgdb.DB
 	pepper []byte
 	now    func() time.Time
 	mu     sync.Mutex // serialises write transactions
@@ -46,61 +43,48 @@ type Store struct {
 const schema = `
 CREATE TABLE IF NOT EXISTS users(
  xuid TEXT PRIMARY KEY, core_account_id TEXT NOT NULL, gamertag TEXT NOT NULL, link_id TEXT NOT NULL,
- status TEXT NOT NULL, created INTEGER NOT NULL, updated INTEGER NOT NULL);
+ status TEXT NOT NULL, created BIGINT NOT NULL, updated BIGINT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS users_one_primary ON users(core_account_id) WHERE status IN ('active','banned');
 CREATE INDEX IF NOT EXISTS users_account ON users(core_account_id);
 CREATE TABLE IF NOT EXISTS gamertag_aliases(
- alias_lower TEXT PRIMARY KEY, xuid TEXT NOT NULL REFERENCES users(xuid), created INTEGER NOT NULL);
+ alias_lower TEXT PRIMARY KEY, xuid TEXT NOT NULL REFERENCES users(xuid), created BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS devices(
  machine_id TEXT PRIMARY KEY, core_account_id TEXT NOT NULL, status TEXT NOT NULL,
- proof_mac BLOB NOT NULL, proof_sealed BLOB NOT NULL DEFAULT x'', created INTEGER NOT NULL, updated INTEGER NOT NULL);
+ proof_mac BYTEA NOT NULL, proof_sealed BYTEA NOT NULL DEFAULT '\x', created BIGINT NOT NULL, updated BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS devices_account ON devices(core_account_id);
 CREATE TABLE IF NOT EXISTS provisions(
- id TEXT PRIMARY KEY, core_account_id TEXT NOT NULL, machine_id TEXT NOT NULL, challenge_hash BLOB NOT NULL,
- expires INTEGER NOT NULL, state TEXT NOT NULL, xuid TEXT NOT NULL DEFAULT '', link_id TEXT NOT NULL DEFAULT '',
- gamertag TEXT NOT NULL DEFAULT '', proof_mac BLOB, proof_sealed BLOB, fail_reason TEXT NOT NULL DEFAULT '',
- created INTEGER NOT NULL, updated INTEGER NOT NULL);
+ id TEXT PRIMARY KEY, core_account_id TEXT NOT NULL, machine_id TEXT NOT NULL, challenge_hash BYTEA NOT NULL,
+ expires BIGINT NOT NULL, state TEXT NOT NULL, xuid TEXT NOT NULL DEFAULT '', link_id TEXT NOT NULL DEFAULT '',
+ gamertag TEXT NOT NULL DEFAULT '', proof_mac BYTEA, proof_sealed BYTEA, fail_reason TEXT NOT NULL DEFAULT '',
+ created BIGINT NOT NULL, updated BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS name_reservations(
  alias_lower TEXT PRIMARY KEY, gamertag TEXT NOT NULL, machine_id TEXT NOT NULL, core_account_id TEXT NOT NULL UNIQUE,
- expires INTEGER NOT NULL, created INTEGER NOT NULL);
+ expires BIGINT NOT NULL, created BIGINT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS name_reservations_machine ON name_reservations(machine_id);
 CREATE TABLE IF NOT EXISTS auto_identities(
- core_account_id TEXT PRIMARY KEY, xuid TEXT NOT NULL UNIQUE, created INTEGER NOT NULL);
+ core_account_id TEXT PRIMARY KEY, xuid TEXT NOT NULL UNIQUE, created BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS gamertag_audit(
- id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, core_account_id TEXT NOT NULL, xuid TEXT NOT NULL,
+ id BIGSERIAL PRIMARY KEY, ts BIGINT NOT NULL, core_account_id TEXT NOT NULL, xuid TEXT NOT NULL,
  old_tag TEXT NOT NULL, new_tag TEXT NOT NULL, request_id TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS gamertag_audit_request ON gamertag_audit(request_id) WHERE request_id<>'';
 CREATE TABLE IF NOT EXISTS user_settings(
- xuid TEXT PRIMARY KEY, word INTEGER NOT NULL, updated INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS cursors(name TEXT PRIMARY KEY, version INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS processed_events(event_id TEXT PRIMARY KEY, version INTEGER NOT NULL);
+ xuid TEXT PRIMARY KEY, word BIGINT NOT NULL, updated BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS cursors(name TEXT PRIMARY KEY, version BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS processed_events(event_id TEXT PRIMARY KEY, version BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS revocations(
- seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT NOT NULL UNIQUE, scope TEXT NOT NULL,
- principal_id TEXT NOT NULL, core_account_id TEXT NOT NULL, reason TEXT NOT NULL, created INTEGER NOT NULL);
+ seq BIGSERIAL PRIMARY KEY, event_id TEXT NOT NULL UNIQUE, scope TEXT NOT NULL,
+ principal_id TEXT NOT NULL, core_account_id TEXT NOT NULL, reason TEXT NOT NULL, created BIGINT NOT NULL);
 `
 
-// Durability: WAL with synchronous=NORMAL survives process crashes; an OS
-// crash can lose the last commits, which is safe here because provisioning
-// resumes via core's idempotency keys and the event cursor simply re-polls.
-//
-// Open opens (creating) the database at path. pepper keys the device-proof MAC
-// and must be at least 32 bytes of secret material kept outside the database.
-func Open(path string, pepper []byte) (*Store, error) {
+// Open connects to the Postgres at dsn (schema xb_account unless the DSN sets a
+// search_path), creating the tables. pepper keys the device-proof MAC and must
+// be at least 32 bytes of secret material kept outside the database.
+func Open(dsn string, pepper []byte) (*Store, error) {
 	if len(pepper) < 32 {
 		return nil, errors.New("store: pepper must be at least 32 bytes")
 	}
-	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)"
-	db, err := sql.Open("sqlite", dsn)
+	db, err := pgdb.Open(dsn, "xb_account", schema+schemaEnrol)
 	if err != nil {
-		return nil, err
-	}
-	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schema); err != nil {
-		db.Close()
-		return nil, err
-	}
-	if err := migrateEnrol(db); err != nil {
-		db.Close()
 		return nil, err
 	}
 	return &Store{db: db, pepper: append([]byte(nil), pepper...), now: time.Now}, nil
@@ -163,7 +147,7 @@ func (s *Store) DeviceKey(ctx context.Context, machineID string) ([]byte, error)
 }
 
 // tx runs f in a serialised write transaction.
-func (s *Store) tx(ctx context.Context, f func(*sql.Tx) error) error {
+func (s *Store) tx(ctx context.Context, f func(*pgdb.Tx) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t, err := s.db.BeginTx(ctx, nil)
@@ -177,9 +161,7 @@ func (s *Store) tx(ctx context.Context, f func(*sql.Tx) error) error {
 	return t.Commit()
 }
 
-func isUnique(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
-}
+func isUnique(err error) bool { return pgdb.IsUnique(err) }
 
 // ---- principals ----
 
@@ -278,7 +260,7 @@ type Provision struct {
 
 func (s *Store) CreateProvision(ctx context.Context, p Provision) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		_, err := t.ExecContext(ctx, `INSERT INTO provisions(id,core_account_id,machine_id,challenge_hash,expires,state,created,updated) VALUES(?,?,?,?,?,?,?,?)`,
 			p.ID, p.CoreAccountID, p.MachineID, p.ChallengeHash[:], p.Expires.Unix(), ProvPending, n, n)
 		if isUnique(err) {
@@ -329,7 +311,7 @@ func (s *Store) StaleProvisions(ctx context.Context) ([]Provision, error) {
 
 // SetProvision updates the mutable resume fields.
 func (s *Store) SetProvision(ctx context.Context, p Provision) error {
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		_, err := t.ExecContext(ctx, `UPDATE provisions SET state=?,xuid=?,link_id=?,gamertag=?,proof_mac=?,proof_sealed=?,fail_reason=?,updated=? WHERE id=?`,
 			p.State, p.XUID, p.LinkID, p.Gamertag, p.ProofMAC, p.ProofSealed, p.FailReason, s.unix(), p.ID)
 		return err
@@ -341,7 +323,7 @@ func (s *Store) SetProvision(ctx context.Context, p Provision) error {
 // primary user for the account, gamertag in use, machine bound elsewhere).
 func (s *Store) CommitProvision(ctx context.Context, p Provision) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		if _, err := t.ExecContext(ctx, `INSERT INTO users(xuid,core_account_id,gamertag,link_id,status,created,updated) VALUES(?,?,?,?,'active',?,?)`,
 			p.XUID, p.CoreAccountID, p.Gamertag, p.LinkID, n, n); err != nil {
 			return conflict(err)
@@ -442,7 +424,7 @@ func inList(from []xbaccountapi.Status) (string, []any) {
 // redelivery is harmless. Versions must not move the cursor backwards.
 func (s *Store) ApplyChange(ctx context.Context, c Change) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		var cur uint64
 		err := t.QueryRowContext(ctx, `SELECT version FROM cursors WHERE name=?`, cursorName).Scan(&cur)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -474,7 +456,7 @@ func (s *Store) ApplyChange(ctx context.Context, c Change) error {
 	})
 }
 
-func (s *Store) effects(ctx context.Context, t *sql.Tx, c Change, n int64) error {
+func (s *Store) effects(ctx context.Context, t *pgdb.Tx, c Change, n int64) error {
 	if sc := c.SetAccount; sc != nil {
 		in, args := inList(sc.From)
 		base := []any{string(sc.To), n, c.AccountID}

@@ -7,7 +7,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
+
 	"errors"
+	"github.com/openpak/xb-account/internal/pgdb"
 	"strings"
 	"time"
 
@@ -28,56 +30,23 @@ var (
 )
 
 const schemaEnrol = `
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS xuid TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS link_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS signup TEXT NOT NULL DEFAULT 'complete';
+CREATE INDEX IF NOT EXISTS devices_xuid ON devices(xuid) WHERE xuid<>'';
 CREATE TABLE IF NOT EXISTS enrolments(
- id TEXT PRIMARY KEY, code_hash BLOB NOT NULL UNIQUE, poll_hash BLOB NOT NULL UNIQUE,
- machine_id TEXT NOT NULL, client_info TEXT NOT NULL DEFAULT '', proof_mac BLOB NOT NULL, proof_sealed BLOB NOT NULL,
- expires INTEGER NOT NULL, state TEXT NOT NULL, core_account_id TEXT NOT NULL DEFAULT '',
+ id TEXT PRIMARY KEY, code_hash BYTEA NOT NULL UNIQUE, poll_hash BYTEA NOT NULL UNIQUE,
+ machine_id TEXT NOT NULL, client_info TEXT NOT NULL DEFAULT '', proof_mac BYTEA NOT NULL, proof_sealed BYTEA NOT NULL,
+ expires BIGINT NOT NULL, state TEXT NOT NULL, core_account_id TEXT NOT NULL DEFAULT '',
  xuid TEXT NOT NULL DEFAULT '', link_id TEXT NOT NULL DEFAULT '', fail_reason TEXT NOT NULL DEFAULT '',
- created INTEGER NOT NULL, updated INTEGER NOT NULL);
+ created BIGINT NOT NULL, updated BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS enrolments_machine ON enrolments(machine_id);
 CREATE TABLE IF NOT EXISTS vouchers(
- code_hash BLOB PRIMARY KEY, core_account_id TEXT NOT NULL, machine_id TEXT NOT NULL DEFAULT '',
- expires INTEGER NOT NULL, state TEXT NOT NULL, consumed_machine TEXT NOT NULL DEFAULT '',
- created INTEGER NOT NULL, updated INTEGER NOT NULL);
+ code_hash BYTEA PRIMARY KEY, core_account_id TEXT NOT NULL, machine_id TEXT NOT NULL DEFAULT '',
+ expires BIGINT NOT NULL, state TEXT NOT NULL, consumed_machine TEXT NOT NULL DEFAULT '',
+ created BIGINT NOT NULL, updated BIGINT NOT NULL);
 CREATE INDEX IF NOT EXISTS vouchers_account ON vouchers(core_account_id);
 `
-
-// migrateEnrol adds the enrolment tables and the device link columns to a new
-// or existing database.
-func migrateEnrol(db *sql.DB) error {
-	if _, err := db.Exec(schemaEnrol); err != nil {
-		return err
-	}
-	rows, err := db.Query(`PRAGMA table_info(devices)`)
-	if err != nil {
-		return err
-	}
-	have := map[string]bool{}
-	for rows.Next() {
-		var cid, notnull, pk int
-		var name, typ string
-		var dflt sql.NullString
-		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
-			rows.Close()
-			return err
-		}
-		have[name] = true
-	}
-	rows.Close()
-	for _, c := range []struct{ name, ddl string }{
-		{"xuid", `ALTER TABLE devices ADD COLUMN xuid TEXT NOT NULL DEFAULT ''`},
-		{"link_id", `ALTER TABLE devices ADD COLUMN link_id TEXT NOT NULL DEFAULT ''`},
-		{"signup", `ALTER TABLE devices ADD COLUMN signup TEXT NOT NULL DEFAULT 'complete'`},
-	} {
-		if !have[c.name] {
-			if _, err := db.Exec(c.ddl); err != nil {
-				return err
-			}
-		}
-	}
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS devices_xuid ON devices(xuid) WHERE xuid<>''`)
-	return err
-}
 
 // CodeHash keys a human-typed code for storage and lookup:
 // HMAC-SHA256(pepper, label || 0 || code). Codes are never stored.
@@ -129,7 +98,7 @@ func scanEnrol(row interface{ Scan(...any) error }) (Enrolment, error) {
 // means a code or token collision: the caller generates new ones.
 func (s *Store) CreateEnrolment(ctx context.Context, e Enrolment, maxPending int) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		var st string
 		err := t.QueryRowContext(ctx, `SELECT status FROM devices WHERE machine_id=?`, e.MachineID).Scan(&st)
 		if err == nil && held(xbaccountapi.Status(st)) {
@@ -170,7 +139,7 @@ func (s *Store) GetEnrolment(ctx context.Context, id string) (Enrolment, error) 
 
 // SetEnrolment updates the mutable resume fields.
 func (s *Store) SetEnrolment(ctx context.Context, e Enrolment) error {
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		_, err := t.ExecContext(ctx, `UPDATE enrolments SET state=?,core_account_id=?,xuid=?,link_id=?,fail_reason=?,updated=? WHERE id=?`,
 			e.State, e.CoreAccountID, e.XUID, e.LinkID, e.FailReason, s.unix(), e.ID)
 		return err
@@ -199,7 +168,7 @@ func (s *Store) StaleEnrolments(ctx context.Context) ([]Enrolment, error) {
 // PurgeEnrolments deletes finished or expired rows older than keep past expiry
 // (so the console can still read "approved"/"expired" for a while).
 func (s *Store) PurgeEnrolments(ctx context.Context, keep time.Duration) error {
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		_, err := t.ExecContext(ctx, `DELETE FROM enrolments WHERE expires<=? AND state IN ('pending','approved','failed')`, s.now().Add(-keep).Unix())
 		return err
 	})
@@ -211,7 +180,7 @@ func (s *Store) PurgeEnrolments(ctx context.Context, keep time.Duration) error {
 // ErrConflict: the machine is active for another account or banned.
 func (s *Store) CommitEnrolment(ctx context.Context, e Enrolment) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		var st string
 		err := t.QueryRowContext(ctx, `SELECT status FROM devices WHERE machine_id=?`, e.MachineID).Scan(&st)
 		switch {
@@ -283,7 +252,7 @@ type Voucher struct {
 // CreateVoucher stores a new code and revokes the account's earlier unused ones.
 func (s *Store) CreateVoucher(ctx context.Context, v Voucher) error {
 	n := s.unix()
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		if _, err := t.ExecContext(ctx, `UPDATE vouchers SET state='revoked',updated=? WHERE core_account_id=? AND state='issued'`, n, v.CoreAccountID); err != nil {
 			return err
 		}
@@ -355,7 +324,7 @@ func (s *Store) VoucherConsumedBy(ctx context.Context, hash []byte, machineID st
 func (s *Store) CommitSignup(ctx context.Context, machineID string, hash []byte, gamertag string) (User, error) {
 	n := s.unix()
 	var u User
-	err := s.tx(ctx, func(t *sql.Tx) error {
+	err := s.tx(ctx, func(t *pgdb.Tx) error {
 		var acct, st, xuid, linkID, signup string
 		err := t.QueryRowContext(ctx, `SELECT core_account_id,status,xuid,link_id,signup FROM devices WHERE machine_id=?`, machineID).Scan(&acct, &st, &xuid, &linkID, &signup)
 		if errors.Is(err, sql.ErrNoRows) {

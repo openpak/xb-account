@@ -101,7 +101,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("XB_PEPPER_FILE must contain hex")
 	}
-	db, err := store.Open(required("XB_DB_PATH"), pepper)
+	db, err := store.Open(required("XB_ACCOUNT_DATABASE_URL"), pepper)
 	if err != nil {
 		return fmt.Errorf("cannot open store: %w", err)
 	}

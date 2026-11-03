@@ -5,7 +5,9 @@ package store
 import (
 	"context"
 	"database/sql"
+
 	"errors"
+	"github.com/openpak/xb-account/internal/pgdb"
 	"strings"
 	"time"
 )
@@ -64,7 +66,7 @@ func (s *Store) ReserveName(ctx context.Context, machineID, account, gamertag st
 	n := s.unix()
 	lower := strings.ToLower(gamertag)
 	res := Reservation{Gamertag: gamertag, MachineID: machineID, CoreAccountID: account, Expires: time.Unix(n, 0).Add(ttl)}
-	err := s.tx(ctx, func(t *sql.Tx) error {
+	err := s.tx(ctx, func(t *pgdb.Tx) error {
 		if _, err := t.ExecContext(ctx, `DELETE FROM name_reservations WHERE expires<=?`, n); err != nil {
 			return err
 		}
@@ -110,7 +112,7 @@ func (s *Store) GetReservation(ctx context.Context, account string) (Reservation
 
 // ReleaseReservation drops the account's hold (idempotent).
 func (s *Store) ReleaseReservation(ctx context.Context, account string) error {
-	return s.tx(ctx, func(t *sql.Tx) error {
+	return s.tx(ctx, func(t *pgdb.Tx) error {
 		_, err := t.ExecContext(ctx, `DELETE FROM name_reservations WHERE core_account_id=?`, account)
 		return err
 	})
