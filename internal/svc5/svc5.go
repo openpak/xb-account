@@ -238,8 +238,13 @@ func (s *Server) handle(ctx context.Context, info xbfeature.Info, req *http.Requ
 			return status(429)
 		}
 		return s.presence(ctx, info, body)
-	case path == "/xbos/offeringdetailsnouser.ashx":
+	case path == "/xbos/offeringdetailsnouser.ashx", path == "/xbos/offeringdetails.ashx":
 		if req.Header.Get("Content-Type") != "xon/4" {
+			return status(400)
+		}
+	case path == "/xbos/offeringcancel.ashx":
+		// The client sends the cancel call as service 9 ("Billing"), not 4.
+		if req.Header.Get("Content-Type") != "xon/9" {
 			return status(400)
 		}
 	default:

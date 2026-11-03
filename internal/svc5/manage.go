@@ -57,6 +57,10 @@ func (s *Server) manageRoute(path string) handlerFunc {
 		return nil
 	}
 	switch path {
+	case "/xbos/offeringdetails.ashx":
+		return s.offeringDetailsUser
+	case "/xbos/offeringcancel.ashx":
+		return s.offeringCancel
 	case "/xuacs/getsubscriptionstatus.ashx":
 		return s.subscriptionStatus
 	case "/xuacs/troubleshootaccount.ashx":

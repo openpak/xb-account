@@ -56,3 +56,20 @@ The service-5 wire handling for verifyvoucher/createowneracct is not implemented
 ## Verification
 
 Generic password verification is not Kerberos proof. Neither a core password check, a provisioning token, nor the stored device proof MAC authenticates a native Kerberos exchange; xb-auth must validate pre-authentication itself. This service calls account core's gRPC Links and Identity contracts and never reads core tables or exports passwords, Kerberos keys, email or web sessions.
+
+## Offering calls (`/xbos/`, native services 4 and 9)
+
+Served over the gateway feature stream next to the account calls
+(`internal/svc5`). Wire formats and RE addresses: `research/xbox/xbos-protocol.md`
+in the private research repo.
+
+| Path | Service (`Content-type`) | Request | Reply |
+|---|---|---|---|
+| `/xbos/OfferingDetailsNoUser.ashx` | 4 (`xon/4`) | 27 bytes: country, machine id, u32, offer id, u32, u16 | offer record, X-Err 0 |
+| `/xbos/OfferingDetails.ashx` | 4 | 34 bytes: XUID 8, machine id 8, u32, offer id 8, u32, u16 | the same offer record; unknown offer id 0x80154007; XUID of another account 0x8015400a |
+| `/xbos/OfferingCancel.ashx` | **9** (`xon/9`) | 16 bytes: XUID 8, offer id 8 | X-Err 0, empty body (OpenPak has no paid subscription; success changes nothing) |
+
+Cancel arrives as service 9: the gateway needs an `XBGW_BACKENDS` entry `9=` for
+it. `/xbos/verifynickname.ashx` (service 9) is not called by any stock 5960
+dashboard code and stays 501. `/xbos/AutoupdReferral.ashx` is service 3 and is not
+served here (see `xb-update`).
