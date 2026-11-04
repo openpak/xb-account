@@ -27,3 +27,9 @@ Configuration (all secrets are service-managed files):
 ## State
 
 State lives in Postgres: schema `xb_account` of the shared `xbox` database, reached through `XB_ACCOUNT_DATABASE_URL` (required; the service refuses to start without it; the pool is capped at 3 connections). The service creates its schema and tables on start. Until v0.1.39 the state was an embedded SQLite file (`XB_DB_PATH`); that file is no longer read, it is kept on the volume as the pre-migration copy. The core's Postgres is never shared. `XB_PEPPER_FILE` holds >=32 bytes of hex used to key the device-proof MAC (proofs are never stored).
+
+## Account erasure
+
+`DELETE /internal/accounts/{account_id}/data` with `Authorization: Bearer $ACCOUNT_ERASE_KEY`, on `ERASE_ADDR` (default `:9099`, container network only; not served without the key). Reply `{"service":"xb-account","rows":N}`. Website step name: `xb-account`; call it AFTER the other Xbox services (xb-social, xb-xmessaging, xb-stfd resolve Xbox ids through the core link, not through this service, so the order is a precaution only).
+
+Erased: `users`, `gamertag_aliases`, `gamertag_audit`, `user_settings`, `auto_identities`, `name_reservations`, `devices`, `provisions`, `enrolments`, `vouchers` and the account's `revocations`. The `account_deleted` event runs the same erase but leaves the newly appended deletion revocation (account uuid and reason, no other data) so gateways drop live sessions. Kept: `cursors` and `processed_events` (event ids only). One log line per erasure.

@@ -25,8 +25,7 @@ type Processor struct {
 }
 
 var (
-	live     = []xbaccountapi.Status{xbaccountapi.StatusActive, xbaccountapi.StatusBanned}
-	anything = []xbaccountapi.Status{xbaccountapi.StatusActive, xbaccountapi.StatusBanned, xbaccountapi.StatusUnlinked, xbaccountapi.StatusRevoked, store.StatusSuspended}
+	live = []xbaccountapi.Status{xbaccountapi.StatusActive, xbaccountapi.StatusBanned}
 )
 
 // Plan maps one core event to its local change. Unknown or foreign events
@@ -62,8 +61,10 @@ func Plan(e core.Event) store.Change {
 		// account is still denied: the resolver re-reads the core status.
 		c.SetAccount = &store.StatusChange{From: []xbaccountapi.Status{store.StatusSuspended}, To: xbaccountapi.StatusActive, Users: true, Devices: true}
 	case "account_deleted":
-		// Final erasure: only now is the gamertag released.
-		c.SetAccount = &store.StatusChange{From: anything, To: xbaccountapi.StatusDeleted, Users: true, Devices: true, ReleaseGamertag: true}
+		// Final erasure: every row of the account goes (the gamertag is
+		// released with it); only the revocation entry stays so the gateways
+		// still drop live sessions.
+		c.Erase = true
 		c.Emit = acct(xbaccountapi.StatusDeleted)
 	case "credential_revoked":
 		if e.Namespace == "" || e.Namespace == core.Namespace {

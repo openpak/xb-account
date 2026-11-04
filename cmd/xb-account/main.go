@@ -21,6 +21,7 @@ import (
 	"github.com/openpak/xb-account/internal/autoid"
 	"github.com/openpak/xb-account/internal/core"
 	"github.com/openpak/xb-account/internal/enrol"
+	"github.com/openpak/xb-account/internal/erase"
 	"github.com/openpak/xb-account/internal/profile"
 	"github.com/openpak/xb-account/internal/provision"
 	"github.com/openpak/xb-account/internal/resolver"
@@ -113,6 +114,7 @@ func run() error {
 	enrolments := &enrol.Service{Core: coreAPI, Store: db, Vouchers: vouchers}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	erase.Serve(ctx, "xb-account", db.EraseAccount)
 	go (&revoke.Processor{Core: coreAPI, Store: db}).Run(ctx, 2*time.Second)
 	// Every active core account gets an Xbox identity (xuid, gamertag, xbox link,
 	// users rows) without a console step; it has no credentials (internal/autoid).

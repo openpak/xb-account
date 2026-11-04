@@ -254,14 +254,60 @@ func TestDeletionAndCredentialRevocation(t *testing.T) {
 	}
 	w.core.Emit("account_deleted", "acct1", "", "")
 	process(t, w)
-	if denial(w.user()) != xbaccountapi.StatusDeleted || denial(w.device()) != xbaccountapi.StatusDeleted {
-		t.Fatal("not deleted")
-	}
-	if u, _ := w.db.GetUser(ctx, w.xuid); u.Gamertag != "" {
-		t.Fatal("gamertag retained after deletion")
+	// Final erasure deletes the rows; the account is unknown from here on.
+	if !errors.Is(w.user(), xbaccountapi.ErrNotFound) || !errors.Is(w.device(), xbaccountapi.ErrNotFound) {
+		t.Fatalf("not erased: %v %v", w.user(), w.device())
 	}
 	if _, err := w.db.GetUserByGamertag(ctx, "Player One"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatal("alias must be released at final erasure")
+	}
+	// The gateways still hear that the account is gone.
+	revs, _ := w.db.Revocations(ctx, 0, 100)
+	if last := revs[len(revs)-1]; last.CoreAccountID != "acct1" || last.Reason != xbaccountapi.StatusDeleted {
+		t.Fatalf("no deletion revocation: %+v", revs)
+	}
+}
+
+func TestEraseAccount(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	w.core.AddAccount("acct2", pb.AccountStatus_ACCOUNT_STATUS_ACTIVE)
+	p := &provision.Provisioner{Core: w.core, Store: w.db}
+	const machine2 = "0000001cbe991a15"
+	tok, _, err := p.Begin(ctx, provision.BeginRequest{CoreAccountID: "acct2", MachineID: machine2, Challenge: challenge})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2, err := p.Finalize(ctx, provision.FinalizeRequest{Token: tok, MachineID: machine2, Challenge: challenge, Gamertag: "Player Two", Proof: bytes.Repeat([]byte{8}, 16)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.core.Emit("account_delete_started", "acct1", "", "")
+	process(t, w) // writes a revocation for acct1
+	n, err := w.db.EraseAccount(ctx, "acct1")
+	if err != nil || n == 0 {
+		t.Fatalf("erase: %d %v", n, err)
+	}
+	if n, err := w.db.EraseAccount(ctx, "acct1"); err != nil || n != 0 {
+		t.Fatalf("second erase: %d %v", n, err)
+	}
+	if _, err := w.db.GetUser(ctx, w.xuid); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("user survived: %v", err)
+	}
+	if _, err := w.db.GetDevice(ctx, machine); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("device survived: %v", err)
+	}
+	if u, err := w.db.GetUser(ctx, r2.XUID); err != nil || u.Gamertag != "Player Two" {
+		t.Fatalf("other account touched: %+v %v", u, err)
+	}
+	if _, err := w.db.GetDevice(ctx, machine2); err != nil {
+		t.Fatalf("other device touched: %v", err)
+	}
+	revs, _ := w.db.Revocations(ctx, 0, 100)
+	for _, v := range revs {
+		if v.CoreAccountID == "acct1" {
+			t.Fatalf("revocation survived: %+v", v)
+		}
 	}
 }
 

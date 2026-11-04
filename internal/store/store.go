@@ -376,6 +376,7 @@ type Change struct {
 	AccountID string
 	// Exactly one of the effects below (or none, to just advance the cursor).
 	SetAccount *StatusChange            // applies to the users and/or devices of AccountID
+	Erase      bool                     // account_deleted: delete every row of AccountID (the revocation entry below stays)
 	UnlinkXUID string                   // user unlinked (also revokes the account's devices)
 	Emit       *xbaccountapi.Revocation // at most one per event (event_id is unique)
 }
@@ -477,6 +478,11 @@ func (s *Store) effects(ctx context.Context, t *pgdb.Tx, c Change, n int64) erro
 			if _, err := t.ExecContext(ctx, `UPDATE users SET gamertag='' WHERE core_account_id=?`, c.AccountID); err != nil {
 				return err
 			}
+		}
+	}
+	if c.Erase {
+		if _, err := eraseTx(ctx, t, c.AccountID, true); err != nil {
+			return err
 		}
 	}
 	if c.UnlinkXUID != "" {
