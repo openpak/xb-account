@@ -1,0 +1,6 @@
+# Identity-looking columns this adapter is allowed to keep. Checked in CI by openpak/.github scripts/dedup-lint.py.
+# One entry per line: table.column  # reason. Every entry needs a reason. Caches are also watched nightly by
+# openpak-dedup-check (md5 compare against the account core, board card openpak/prds#131).
+users.gamertag  # gamertag is the core handle by design (docs/handles.md); cache watched by openpak-dedup-check
+provisions.gamertag  # the handle a provision was issued for; protocol state with the xuid, not profile data
+name_reservations.gamertag  # reservation of a name on the Xbox wire, class P (data-duplication-audit phase 6)
