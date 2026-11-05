@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.0 - 2026-11-05
+
+- The gamertag is a cache of the core handle (data duplication card #131, phase 6). A new sync (internal/gamertag) re-reads the account on every core `profile_updated` event (push) and runs a full pass at start and every 5 minutes (backup TTL). A row that differs from the core handle is repaired, core wins: users.gamertag, the alias (name-reservation table), the core link public code, plus a `gamertag_audit` row (actor `core-handle-sync`). A handle held by another identity is never taken (counted as failed). Core unreachable: the cache is served unchanged. One log line with counts only.
+- Erasure unchanged and covered (audit rows written by the sync are deleted by the same account erase; test added).
+
 ## v0.2.0 - 2026-11-04
 
 - Account erasure (card #120). `DELETE /internal/accounts/{account_id}/data` (bearer `ACCOUNT_ERASE_KEY`, listener `ERASE_ADDR`, default `:9099`, container network only, not served while the key is unset) deletes in one transaction the account's users, gamertag aliases and audit, user settings, auto identity, gamertag reservation, devices (console ids), provisions, enrolments, vouchers and revocation entries; the gamertag is released.

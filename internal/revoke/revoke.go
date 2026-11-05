@@ -22,6 +22,9 @@ type Processor struct {
 	Core  core.API
 	Store *store.Store
 	Batch int
+	// OnProfile, when set, runs for each profile_updated event (push refresh
+	// of the gamertag cache). Failures are covered by the periodic pass.
+	OnProfile func(ctx context.Context, account string)
 }
 
 var (
@@ -98,6 +101,9 @@ func (p *Processor) ProcessOnce(ctx context.Context) (int, error) {
 		}
 		if e.ID == "" {
 			return n, errors.New("revoke: event without id")
+		}
+		if e.Type == "profile_updated" && e.AccountID != "" && p.OnProfile != nil {
+			p.OnProfile(ctx, e.AccountID)
 		}
 		if err := p.Store.ApplyChange(ctx, Plan(e)); err != nil {
 			return n, err

@@ -142,3 +142,46 @@ func (s *Store) RenameUserAudited(ctx context.Context, account, xuid, oldTag, ne
 		return conflict(err)
 	})
 }
+
+// LiveUsers lists the users that hold a gamertag (active, banned or suspended).
+// The gamertag column is a cache of the core handle; the sync walks these rows.
+func (s *Store) LiveUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT xuid,core_account_id,gamertag,link_id,status FROM users WHERE gamertag<>'' AND status IN ('active','banned','suspended') ORDER BY xuid`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		var u User
+		var st string
+		if err := rows.Scan(&u.XUID, &u.CoreAccountID, &u.Gamertag, &u.LinkID, &st); err != nil {
+			return nil, err
+		}
+		u.Status = statusOf(st)
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// UsersOf lists the account's users that hold a gamertag.
+func (s *Store) UsersOf(ctx context.Context, account string) ([]User, error) {
+	all, err := s.LiveUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []User
+	for _, u := range all {
+		if u.CoreAccountID == account {
+			out = append(out, u)
+		}
+	}
+	return out, nil
+}
+
+// AuditCount counts the account's gamertag audit rows.
+func (s *Store) AuditCount(ctx context.Context, account string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gamertag_audit WHERE core_account_id=?`, account).Scan(&n)
+	return n, err
+}
