@@ -109,6 +109,19 @@ func (s *Store) RenameUser(ctx context.Context, xuid, oldTag, newTag string) err
 	})
 }
 
+// PruneStaleAliases deletes the aliases of a live user other than the one for its current gamertag,
+// but only when the current one exists (a user is never left without a reservation). An alias is the
+// name reservation of the gamertag the user holds now: a rename removes the old one, so any other is
+// a leftover that blocks a name nobody holds. Returns how many were removed.
+func (s *Store) PruneStaleAliases(ctx context.Context, xuid, gamertag string) (int64, error) {
+	cur := strings.ToLower(gamertag)
+	res, err := s.db.ExecContext(ctx, `DELETE FROM gamertag_aliases WHERE xuid=? AND alias_lower<>? AND EXISTS (SELECT 1 FROM gamertag_aliases WHERE xuid=? AND alias_lower=?)`, xuid, cur, xuid, cur)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // GamertagAudit is one recorded gamertag change.
 type GamertagAudit struct {
 	XUID, Old, New, RequestID string

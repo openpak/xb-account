@@ -50,6 +50,12 @@ func (s *Syncer) Sync(ctx context.Context, account string) (Counts, error) {
 			continue
 		}
 		if u.Gamertag == acct.Handle {
+			// In step, but a leftover alias of an older tag would still reserve a name nobody holds.
+			if n, err := s.Store.PruneStaleAliases(ctx, u.XUID, u.Gamertag); err != nil {
+				c.Failed++
+			} else if n > 0 {
+				c.Repaired++
+			}
 			continue
 		}
 		if o, err := s.Store.GetUserByGamertag(ctx, acct.Handle); err == nil && o.XUID != u.XUID {
@@ -63,6 +69,10 @@ func (s *Syncer) Sync(ctx context.Context, account string) (Counts, error) {
 			}
 		}
 		if err := s.Store.RenameUserAudited(ctx, account, u.XUID, u.Gamertag, acct.Handle, "", actor); err != nil {
+			c.Failed++
+			continue
+		}
+		if _, err := s.Store.PruneStaleAliases(ctx, u.XUID, acct.Handle); err != nil {
 			c.Failed++
 			continue
 		}

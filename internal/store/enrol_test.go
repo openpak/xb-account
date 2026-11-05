@@ -64,3 +64,37 @@ func TestStateSurvivesRestart(t *testing.T) {
 		t.Fatalf("revocations %+v %v", revs, err)
 	}
 }
+
+// A leftover alias of an older tag is removed, the current one is never touched, and a user whose
+// current alias is missing keeps what it has.
+func TestPruneStaleAliases(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(pgdb.TestDSN(t), bytes.Repeat([]byte{1}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	p := Provision{ID: "p9", CoreAccountID: "acct9", MachineID: "0000001cbe991a19", XUID: "0009000000000009", LinkID: "l9",
+		Gamertag: "Current", ProofMAC: []byte{1}, ProofSealed: []byte{2}}
+	if err := s.CreateProvision(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CommitProvision(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO gamertag_aliases(alias_lower,xuid,created) VALUES('old tag',?,1)`, p.XUID); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.PruneStaleAliases(ctx, p.XUID, "Current"); err != nil || n != 1 {
+		t.Fatalf("pruned %d %v", n, err)
+	}
+	if _, err := s.GetUserByGamertag(ctx, "Current"); err != nil {
+		t.Fatal("current alias lost")
+	}
+	if n, _ := s.PruneStaleAliases(ctx, p.XUID, "Current"); n != 0 {
+		t.Fatalf("second prune removed %d", n)
+	}
+	if n, _ := s.PruneStaleAliases(ctx, p.XUID, "Missing"); n != 0 {
+		t.Fatalf("pruned %d with no current alias", n)
+	}
+}

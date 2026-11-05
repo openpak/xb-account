@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.1 - 2026-11-05
+
+- Sync also removes a leftover alias (data duplication card #131, phase 10b). The nightly check found one live user with two aliases, the second not equal to its core handle (written on 2026-10-18, before the sync existed, by an older rename path). An alias is the reservation of the gamertag a user holds now, so the extra one blocked a name nobody holds. `PruneStaleAliases` runs in step and after every rename, deletes only aliases other than the current one and only when the current one exists.
+- A user row with status `unlinked` is a retired identity (replaced automatic identity: alias freed, marker removed, resolver denies it). It is history for the XUID, not a cache of the handle, and is left as is; the dedup check no longer compares retired rows and instead flags any alias still attached to one.
+
 ## v0.3.0 - 2026-11-05
 
 - The gamertag is a cache of the core handle (data duplication card #131, phase 6). A new sync (internal/gamertag) re-reads the account on every core `profile_updated` event (push) and runs a full pass at start and every 5 minutes (backup TTL). A row that differs from the core handle is repaired, core wins: users.gamertag, the alias (name-reservation table), the core link public code, plus a `gamertag_audit` row (actor `core-handle-sync`). A handle held by another identity is never taken (counted as failed). Core unreachable: the cache is served unchanged. One log line with counts only.
